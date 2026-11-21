@@ -39,4 +39,5 @@ $eff = explode(',', setting('effective_days', '1,2,3,4,5')); ?>
 </div>
 <div class="mt-3"><button class="btn btn-primary btn-lg"><i class="bi bi-save"></i> Simpan Pengaturan</button></div>
 <?= form_close() ?>
+<div class="mt-3"><a class="btn btn-outline-secondary btn-sm" href="<?= site_url('seed') ?>"><i class="bi bi-database"></i> Data Dummy (uji coba)</a></div>
 <?= form_open('settings/wa_test', array('id' => 'waTest')) ?><?= form_close() ?>
