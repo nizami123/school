@@ -1,0 +1,7 @@
+<div class="card mb-3"><div class="card-body"><form class="row g-2" method="get" data-noload>
+<div class="col-md-8"><strong><?= e($st->name) ?></strong> · NIS <?= e($st->nis) ?> · <?= e($st->class_name) ?></div>
+<div class="col-6 col-md-2"><input type="date" name="from" value="<?= e($f['from']) ?>" class="form-control"></div><div class="col-6 col-md-2"><input type="date" name="to" value="<?= e($f['to']) ?>" class="form-control"></div>
+<div class="col-12"><button class="btn btn-primary btn-sm">Tampilkan</button> <a href="<?= site_url('master/students') ?>" class="btn btn-light btn-sm">Kembali</a></div></form></div></div>
+<?php $by = array(); $subs = array(); foreach ($recs as $r) { $by[$r->session_date][$r->subject][] = $r; $subs[$r->subject] = 1; } ksort($subs); ?>
+<div class="card"><div class="card-body"><div class="table-responsive"><table class="table table-sm table-bordered align-middle"><thead><tr><th>Tanggal</th><?php foreach ($subs as $s => $_): ?><th><?= e($s) ?></th><?php endforeach; ?></tr></thead><tbody>
+<?php foreach ($by as $d => $m): ?><tr><td class="text-nowrap"><?= tanggal_id($d) ?></td><?php foreach ($subs as $s => $_): ?><td><?php if (isset($m[$s])) foreach ($m[$s] as $r): ?><?= status_badge($r->status) ?> <small><?= $r->scanned_at ? jam_id($r->scanned_at, FALSE) : '' ?></small><br><?php endforeach; else echo '<span class="text-muted">-</span>'; ?></td><?php endforeach; ?></tr><?php endforeach; if (!$by): ?><tr><td class="text-muted">Tidak ada data pada periode ini.</td></tr><?php endif; ?></tbody></table></div></div></div>

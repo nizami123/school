@@ -1,0 +1,2 @@
+<div class="card"><div class="card-body"><div class="table-responsive"><table class="table table-sm align-middle dt"><thead><tr><th>Waktu</th><th>Siswa</th><th>Jenis</th><th>Status</th></tr></thead><tbody>
+<?php foreach ($rows as $r): ?><tr><td data-order="<?= $r->created_at ?>"><?= date('d/m/Y H:i', strtotime($r->created_at)) ?></td><td><?= e($r->student_name) ?></td><td><?= e($r->notif_type) ?></td><td><?= status_badge($r->status) ?></td></tr><?php endforeach; ?></tbody></table></div></div></div>

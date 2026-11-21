@@ -1,0 +1,150 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+$config['entities'] = array(
+
+'students' => array(
+    'title' => 'Data Siswa', 'singular' => 'Siswa', 'table' => 'students', 'soft' => TRUE,
+    'select' => 's.*, c.name AS class_name, p.name AS parent_name, p.whatsapp AS parent_wa',
+    'from' => 'students s',
+    'joins' => array('LEFT JOIN classes c ON c.id=s.class_id',
+                     'LEFT JOIN student_parents sp ON sp.student_id=s.id AND sp.is_primary=1',
+                     'LEFT JOIN parents p ON p.id=sp.parent_id'),
+    'where' => 's.deleted_at IS NULL', 'order' => 'c.name, s.name',
+    'columns' => array(array('photo', 'Foto', 'photo'), array('nis', 'NIS'), array('nisn', 'NISN'), array('name', 'Nama'),
+                       array('class_name', 'Kelas'), array('parent_name', 'Orang Tua'), array('parent_wa', 'WhatsApp'),
+                       array('is_active', 'Status', 'active')),
+    'toggle' => TRUE, 'import' => TRUE, 'qr' => TRUE,
+    'fields' => array(
+        array('name' => 'nis', 'label' => 'NIS', 'type' => 'text', 'required' => 1, 'unique' => 1),
+        array('name' => 'nisn', 'label' => 'NISN', 'type' => 'text', 'unique' => 1, 'nullable' => 1),
+        array('name' => 'name', 'label' => 'Nama Lengkap', 'type' => 'text', 'required' => 1),
+        array('name' => 'gender', 'label' => 'Jenis Kelamin', 'type' => 'select', 'options' => array('L' => 'Laki-laki', 'P' => 'Perempuan'), 'required' => 1),
+        array('name' => 'class_id', 'label' => 'Kelas', 'type' => 'select', 'options' => 'lookup:classes', 'required' => 1),
+        array('name' => 'parent_id', 'label' => 'Orang Tua/Wali', 'type' => 'select', 'options' => 'lookup:parents', 'virtual' => 1,
+              'help' => 'Pilih dari Data Orang Tua. Nomor WhatsApp orang tua dipakai untuk notifikasi.'),
+        array('name' => 'photo', 'label' => 'Foto (JPG/PNG, maks 2 MB)', 'type' => 'file', 'virtual' => 1),
+        array('name' => 'is_active', 'label' => 'Siswa aktif', 'type' => 'bool'),
+    ),
+),
+
+'teachers' => array(
+    'title' => 'Data Guru', 'singular' => 'Guru', 'table' => 'teachers',
+    'select' => 't.*, u.username, (SELECT GROUP_CONCAT(sb.name ORDER BY sb.name SEPARATOR ", ") FROM teacher_subjects ts JOIN subjects sb ON sb.id=ts.subject_id WHERE ts.teacher_id=t.id) AS subject_names',
+    'from' => 'teachers t', 'joins' => array('LEFT JOIN users u ON u.id=t.user_id'), 'where' => '', 'order' => 't.name',
+    'columns' => array(array('name', 'Nama'), array('nip', 'NIP'), array('username', 'Username'), array('phone', 'No. HP'),
+                       array('email', 'Email'), array('subject_names', 'Mata Pelajaran'), array('is_active', 'Status', 'active')),
+    'toggle' => TRUE,
+    'fields' => array(
+        array('name' => 'name', 'label' => 'Nama Guru', 'type' => 'text', 'required' => 1),
+        array('name' => 'nip', 'label' => 'NIP (opsional)', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'username', 'label' => 'Username Login', 'type' => 'text', 'virtual' => 1, 'required' => 1),
+        array('name' => 'password', 'label' => 'Password (kosongkan jika tidak diubah)', 'type' => 'password', 'virtual' => 1),
+        array('name' => 'phone', 'label' => 'Nomor HP', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'email', 'label' => 'Email', 'type' => 'email', 'nullable' => 1),
+        array('name' => 'subject_ids', 'label' => 'Mata Pelajaran yang Diampu', 'type' => 'multiselect', 'options' => 'lookup:subjects', 'virtual' => 1),
+        array('name' => 'is_active', 'label' => 'Guru aktif (boleh login)', 'type' => 'bool'),
+    ),
+),
+
+'classes' => array(
+    'title' => 'Data Kelas', 'singular' => 'Kelas', 'table' => 'classes',
+    'select' => 'c.*, y.name AS year_name, t.name AS homeroom_name, (SELECT COUNT(*) FROM students st WHERE st.class_id=c.id AND st.deleted_at IS NULL AND st.is_active=1) AS total_students',
+    'from' => 'classes c', 'joins' => array('LEFT JOIN academic_years y ON y.id=c.academic_year_id', 'LEFT JOIN teachers t ON t.id=c.homeroom_teacher_id'),
+    'where' => '', 'order' => 'c.name',
+    'columns' => array(array('name', 'Kelas'), array('level', 'Tingkat'), array('homeroom_name', 'Wali Kelas'), array('year_name', 'Tahun Ajaran'), array('total_students', 'Jumlah Siswa')),
+    'fields' => array(
+        array('name' => 'name', 'label' => 'Nama Kelas (mis. VII A)', 'type' => 'text', 'required' => 1),
+        array('name' => 'level', 'label' => 'Tingkat (mis. VII)', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'homeroom_teacher_id', 'label' => 'Wali Kelas', 'type' => 'select', 'options' => 'lookup:teachers', 'nullable' => 1),
+        array('name' => 'academic_year_id', 'label' => 'Tahun Ajaran', 'type' => 'select', 'options' => 'lookup:years', 'nullable' => 1),
+    ),
+),
+
+'subjects' => array(
+    'title' => 'Data Mata Pelajaran', 'singular' => 'Mata Pelajaran', 'table' => 'subjects',
+    'select' => 'sb.*', 'from' => 'subjects sb', 'joins' => array(), 'where' => '', 'order' => 'sb.name',
+    'columns' => array(array('code', 'Kode'), array('name', 'Mata Pelajaran'), array('grp', 'Kelompok'), array('hours', 'Alokasi Jam')),
+    'fields' => array(
+        array('name' => 'code', 'label' => 'Kode Mapel', 'type' => 'text', 'required' => 1, 'unique' => 1),
+        array('name' => 'name', 'label' => 'Nama Mata Pelajaran', 'type' => 'text', 'required' => 1),
+        array('name' => 'grp', 'label' => 'Kelompok Mapel', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'hours', 'label' => 'Alokasi Jam Pelajaran / minggu', 'type' => 'number', 'nullable' => 1),
+    ),
+),
+
+'parents' => array(
+    'title' => 'Data Orang Tua/Wali', 'singular' => 'Orang Tua/Wali', 'table' => 'parents',
+    'select' => 'p.*, (SELECT COUNT(*) FROM student_parents sp WHERE sp.parent_id=p.id) AS total_children',
+    'from' => 'parents p', 'joins' => array(), 'where' => '', 'order' => 'p.name',
+    'columns' => array(array('name', 'Nama Kontak'), array('father_name', 'Ayah'), array('mother_name', 'Ibu'), array('guardian_name', 'Wali'),
+                       array('relation', 'Hubungan'), array('whatsapp', 'WhatsApp'), array('total_children', 'Jml Anak')),
+    'fields' => array(
+        array('name' => 'name', 'label' => 'Nama Kontak Utama (penerima pesan)', 'type' => 'text', 'required' => 1),
+        array('name' => 'father_name', 'label' => 'Nama Ayah', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'mother_name', 'label' => 'Nama Ibu', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'guardian_name', 'label' => 'Nama Wali (opsional)', 'type' => 'text', 'nullable' => 1),
+        array('name' => 'relation', 'label' => 'Hubungan dengan Siswa', 'type' => 'select', 'options' => array('Ayah' => 'Ayah', 'Ibu' => 'Ibu', 'Wali' => 'Wali'), 'nullable' => 1),
+        array('name' => 'whatsapp', 'label' => 'Nomor WhatsApp (contoh 0812xxxx atau +62812xxxx)', 'type' => 'text', 'required' => 1),
+    ),
+),
+
+'academic_years' => array(
+    'title' => 'Tahun Ajaran', 'singular' => 'Tahun Ajaran', 'table' => 'academic_years',
+    'select' => 'y.*', 'from' => 'academic_years y', 'joins' => array(), 'where' => '', 'order' => 'y.start_date DESC',
+    'columns' => array(array('name', 'Tahun Ajaran'), array('start_date', 'Mulai'), array('end_date', 'Selesai'), array('is_active', 'Status', 'active')),
+    'fields' => array(
+        array('name' => 'name', 'label' => 'Tahun Ajaran (mis. 2026/2027)', 'type' => 'text', 'required' => 1, 'unique' => 1),
+        array('name' => 'start_date', 'label' => 'Tanggal Mulai', 'type' => 'date', 'required' => 1),
+        array('name' => 'end_date', 'label' => 'Tanggal Selesai', 'type' => 'date', 'required' => 1),
+        array('name' => 'is_active', 'label' => 'Tahun ajaran aktif', 'type' => 'bool'),
+    ),
+),
+
+'semesters' => array(
+    'title' => 'Semester', 'singular' => 'Semester', 'table' => 'semesters',
+    'select' => 's.*, y.name AS year_name', 'from' => 'semesters s', 'joins' => array('JOIN academic_years y ON y.id=s.academic_year_id'),
+    'where' => '', 'order' => 'y.start_date DESC, s.start_date DESC',
+    'columns' => array(array('year_name', 'Tahun Ajaran'), array('name', 'Semester'), array('start_date', 'Mulai'), array('end_date', 'Selesai'), array('is_active', 'Status', 'active')),
+    'fields' => array(
+        array('name' => 'academic_year_id', 'label' => 'Tahun Ajaran', 'type' => 'select', 'options' => 'lookup:years', 'required' => 1),
+        array('name' => 'name', 'label' => 'Semester', 'type' => 'select', 'options' => array('Ganjil' => 'Ganjil', 'Genap' => 'Genap'), 'required' => 1),
+        array('name' => 'start_date', 'label' => 'Tanggal Mulai', 'type' => 'date', 'required' => 1),
+        array('name' => 'end_date', 'label' => 'Tanggal Selesai', 'type' => 'date', 'required' => 1),
+        array('name' => 'is_active', 'label' => 'Semester aktif (dipakai untuk jadwal baru)', 'type' => 'bool'),
+    ),
+),
+
+'schedules' => array(
+    'title' => 'Jadwal Pelajaran', 'singular' => 'Jadwal', 'table' => 'schedules', 'import' => TRUE, 'duplicate' => TRUE,
+    'select' => 'sc.*, c.name AS class_name, sb.name AS subject_name, t.name AS teacher_name, CONCAT(y.name," ",sm.name) AS sem_name',
+    'from' => 'schedules sc',
+    'joins' => array('JOIN classes c ON c.id=sc.class_id', 'JOIN subjects sb ON sb.id=sc.subject_id', 'JOIN teachers t ON t.id=sc.teacher_id',
+                     'JOIN semesters sm ON sm.id=sc.semester_id', 'JOIN academic_years y ON y.id=sm.academic_year_id'),
+    'where' => 'sm.is_active=1', 'order' => 'sc.day, c.name, sc.start_time',
+    'columns' => array(array('day', 'Hari', 'day'), array('class_name', 'Kelas'), array('subject_name', 'Mata Pelajaran'), array('teacher_name', 'Guru'),
+                       array('start_time', 'Mulai', 'time'), array('end_time', 'Selesai', 'time'), array('room', 'Ruang')),
+    'fields' => array(
+        array('name' => 'semester_id', 'label' => 'Semester', 'type' => 'select', 'options' => 'lookup:semesters', 'required' => 1),
+        array('name' => 'day', 'label' => 'Hari', 'type' => 'select', 'options' => 'lookup:days', 'required' => 1),
+        array('name' => 'class_id', 'label' => 'Kelas', 'type' => 'select', 'options' => 'lookup:classes', 'required' => 1),
+        array('name' => 'subject_id', 'label' => 'Mata Pelajaran', 'type' => 'select', 'options' => 'lookup:subjects', 'required' => 1),
+        array('name' => 'teacher_id', 'label' => 'Guru Pengajar', 'type' => 'select', 'options' => 'lookup:teachers', 'required' => 1),
+        array('name' => 'start_time', 'label' => 'Jam Mulai', 'type' => 'time', 'required' => 1),
+        array('name' => 'end_time', 'label' => 'Jam Selesai', 'type' => 'time', 'required' => 1),
+        array('name' => 'room', 'label' => 'Ruang Kelas (opsional)', 'type' => 'text', 'nullable' => 1),
+    ),
+),
+
+'users' => array(
+    'title' => 'Akun Admin', 'singular' => 'Akun Admin', 'table' => 'users',
+    'select' => 'u.*', 'from' => 'users u', 'joins' => array(), 'where' => 'u.role_id=1', 'order' => 'u.name',
+    'columns' => array(array('name', 'Nama'), array('username', 'Username'), array('last_login', 'Login Terakhir'), array('is_active', 'Status', 'active')),
+    'toggle' => TRUE,
+    'fields' => array(
+        array('name' => 'name', 'label' => 'Nama', 'type' => 'text', 'required' => 1),
+        array('name' => 'username', 'label' => 'Username', 'type' => 'text', 'required' => 1, 'unique' => 1),
+        array('name' => 'password', 'label' => 'Password (min. 8 karakter; kosongkan jika tidak diubah)', 'type' => 'password', 'virtual' => 1),
+        array('name' => 'is_active', 'label' => 'Akun aktif', 'type' => 'bool'),
+    ),
+),
+);

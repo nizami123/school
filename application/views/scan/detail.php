@@ -1,0 +1,15 @@
+<div class="card mb-3"><div class="card-body d-flex justify-content-between flex-wrap gap-2">
+  <div><div class="fw-bold"><?= e($s->subject_name) ?> · <?= e($s->class_name) ?></div><div class="small text-muted"><?= e($s->teacher_name) ?> · <?= tanggal_id($s->session_date) ?> · <?= substr($s->start_time, 0, 5) ?>–<?= substr($s->end_time, 0, 5) ?> · <?= $s->status === 'open' ? '<span class="badge bg-success">Berjalan</span>' : '<span class="badge bg-secondary">Selesai</span>' ?></div></div>
+  <div>Hadir <strong><?= (int)$stats['present'] ?></strong>/<?= (int)$stats['total'] ?> (<?= (int)$stats['pct'] ?>%)
+  <?php if ($s->status === 'open'): ?><a class="btn btn-sm btn-primary ms-2" href="<?= site_url('scan/run/' . $s->id) ?>">Buka Scanner</a><?php else: ?><a class="btn btn-sm btn-outline-secondary ms-2" href="<?= site_url('scan/confirm/' . $s->id) ?>">Konfirmasi Status</a><?php endif; ?></div>
+</div></div>
+<div class="card"><div class="card-body"><div class="table-responsive"><table class="table table-sm align-middle dt"><thead><tr><th>NIS</th><th>Nama</th><th>Status</th><th>Jam</th><th>Sumber</th><th>Catatan</th><th>Koreksi</th></tr></thead><tbody>
+<?php foreach ($recs as $r): ?><tr><td><?= e($r->nis) ?></td><td><?= e($r->name) ?></td><td><?= status_badge($r->status) ?></td><td><?= $r->scanned_at ? jam_id($r->scanned_at, FALSE) : '-' ?></td><td class="small"><?= e($r->source) ?></td><td class="small"><?= e($r->note) ?></td>
+<td><button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#fix" data-rid="<?= $r->id ?>" data-name="<?= e($r->name) ?>" data-status="<?= e($r->status) ?>">Koreksi</button></td></tr><?php endforeach; ?></tbody></table></div></div></div>
+<div class="modal fade" id="fix" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><?= form_open('scan/correct') ?>
+<div class="modal-header"><h5 class="modal-title">Koreksi Absensi</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body"><input type="hidden" name="session_id" value="<?= $s->id ?>"><input type="hidden" name="record_id" id="fRid"><p><strong id="fName"></strong></p>
+<label class="form-label">Status baru</label><select name="status" id="fStatus" class="form-select mb-2"><?php foreach (array('hadir', 'terlambat', 'sakit', 'izin', 'alpa', 'belum') as $k): ?><option value="<?= $k ?>"><?= status_label($k) ?></option><?php endforeach; ?></select>
+<label class="form-label">Alasan koreksi <span class="text-danger">*</span></label><input name="reason" class="form-control" required maxlength="255"></div>
+<div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button class="btn btn-primary">Simpan Koreksi</button></div><?= form_close() ?></div></div></div>
+<script>document.getElementById('fix').addEventListener('show.bs.modal',function(e){var b=e.relatedTarget;fRid.value=b.dataset.rid;fName.textContent=b.dataset.name;fStatus.value=b.dataset.status;});</script>

@@ -1,0 +1,10 @@
+{
+  "name": "sekolah/qr-school-attendance",
+  "description": "QR School Attendance - dependensi opsional (PDF & Excel)",
+  "require": {
+    "php": ">=7.3",
+    "dompdf/dompdf": "^1.2",
+    "phpoffice/phpspreadsheet": "^1.18"
+  },
+  "config": { "platform": { "php": "7.3.0" } }
+}

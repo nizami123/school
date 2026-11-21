@@ -1,0 +1,2 @@
+<div class="card"><div class="card-body"><div class="table-responsive"><table class="table table-sm dt"><thead><tr><th>Waktu</th><th>Pengguna</th><th>Aksi</th><th>Detail</th><th>IP</th></tr></thead><tbody>
+<?php foreach ($rows as $r): ?><tr><td data-order="<?= $r->created_at ?>"><?= date('d/m/Y H:i:s', strtotime($r->created_at)) ?></td><td><?= e($r->user_name ?: '-') ?></td><td><?= e($r->action) ?></td><td class="small"><?= e($r->detail) ?></td><td class="small"><?= e($r->ip) ?></td></tr><?php endforeach; ?></tbody></table></div></div></div>

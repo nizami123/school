@@ -1,0 +1,5 @@
+<div class="card"><div class="card-body"><div class="table-responsive"><table class="table align-middle dt"><thead><tr><th>Tanggal</th><th>Jam</th><th>Kelas</th><th>Mapel</th><?php if ($this->session->userdata('role') === 'admin'): ?><th>Guru</th><?php endif; ?><th>Hadir</th><th>Status</th><th></th></tr></thead><tbody>
+<?php foreach ($rows as $r): ?><tr><td data-order="<?= $r->session_date ?>"><?= tanggal_id($r->session_date, FALSE) ?></td><td><?= substr($r->start_time, 0, 5) ?></td><td><?= e($r->class_name) ?></td><td><?= e($r->subject_name) ?></td>
+<?php if ($this->session->userdata('role') === 'admin'): ?><td><?= e($r->teacher_name) ?></td><?php endif; ?>
+<td><?= (int)$r->present ?>/<?= (int)$r->total ?></td><td><?= $r->status === 'open' ? '<span class="badge bg-success">Berjalan</span>' : '<span class="badge bg-secondary">Selesai</span>' ?></td>
+<td><a class="btn btn-sm btn-outline-primary" href="<?= site_url('scan/detail/' . $r->id) ?>">Detail</a></td></tr><?php endforeach; ?></tbody></table></div></div></div>

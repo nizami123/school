@@ -1,0 +1,10 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+// Template bawaan pesan WhatsApp. Variabel: {nama} {kelas} {mapel} {guru} {hari_tanggal} {waktu} {sekolah} {daftar}
+$config['wa_templates'] = array(
+ 'tpl_hadir' => "Assalamu'alaikum Bapak/Ibu.\n\nKami informasikan bahwa putra/putri Bapak/Ibu:\n\nNama: {nama}\nKelas: {kelas}\nMata Pelajaran: {mapel}\nGuru Pengajar: {guru}\nHari/Tanggal: {hari_tanggal}\nWaktu Kehadiran: {waktu}\n\nTelah tercatat HADIR dalam kegiatan pembelajaran di sekolah.\n\nTerima kasih atas perhatian dan kerja sama Bapak/Ibu.\n\nSalam,\nAdmin {sekolah}.",
+ 'tpl_terlambat' => "Assalamu'alaikum Bapak/Ibu.\n\nKami informasikan bahwa putra/putri Bapak/Ibu:\n\nNama: {nama}\nKelas: {kelas}\nMata Pelajaran: {mapel}\nGuru Pengajar: {guru}\nHari/Tanggal: {hari_tanggal}\nWaktu Kehadiran: {waktu}\n\nTercatat TERLAMBAT mengikuti kegiatan pembelajaran.\n\nTerima kasih atas perhatian dan kerja sama Bapak/Ibu.\n\nSalam,\nAdmin {sekolah}.",
+ 'tpl_belum' => "Assalamu'alaikum Bapak/Ibu.\n\nKami informasikan bahwa sampai dengan berakhirnya sesi pembelajaran, putra/putri Bapak/Ibu:\n\nNama: {nama}\nKelas: {kelas}\nMata Pelajaran: {mapel}\nHari/Tanggal: {hari_tanggal}\n\nBelum tercatat melakukan absensi kehadiran.\n\nMohon konfirmasi kepada pihak sekolah apabila siswa berhalangan hadir.\n\nTerima kasih.\nAdmin {sekolah}.",
+ 'tpl_izin' => "Assalamu'alaikum Bapak/Ibu.\n\nPutra/putri Bapak/Ibu:\n\nNama: {nama}\nKelas: {kelas}\nMata Pelajaran: {mapel}\nHari/Tanggal: {hari_tanggal}\n\nTercatat IZIN pada kegiatan pembelajaran tersebut.\n\nTerima kasih.\nAdmin {sekolah}.",
+ 'tpl_sakit' => "Assalamu'alaikum Bapak/Ibu.\n\nPutra/putri Bapak/Ibu:\n\nNama: {nama}\nKelas: {kelas}\nMata Pelajaran: {mapel}\nHari/Tanggal: {hari_tanggal}\n\nTercatat SAKIT pada kegiatan pembelajaran tersebut. Semoga lekas sembuh.\n\nTerima kasih.\nAdmin {sekolah}.",
+ 'tpl_rekap' => "Assalamu'alaikum Bapak/Ibu.\n\nRekap kehadiran putra/putri Bapak/Ibu hari ini:\n\nNama: {nama}\nKelas: {kelas}\nHari/Tanggal: {hari_tanggal}\n\n{daftar}\n\nTerima kasih.\nAdmin {sekolah}.",
+);

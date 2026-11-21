@@ -1,0 +1,1 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?><!doctype html><html><head><meta charset="utf-8"><title>Kesalahan</title></head><body><h1>Terjadi kesalahan</h1><p>Silakan hubungi admin. (<?= ENVIRONMENT === 'production' ? 'lihat application/logs' : get_class($exception) . ': ' . $message ?>)</p></body></html>
