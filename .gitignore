@@ -35,8 +35,5 @@ user_guide_src/cilexer/pycilexer.egg-info/*
 /docs/
 
 # Rahasia & data lokal
-/application/config/database.php
-/application/config/database_local.php
-/application/config/installed.lock
 /uploads/*
 !/uploads/index.html
