@@ -12,11 +12,11 @@ class Wa extends MY_Controller
     public function index()
     {
         $st = $this->input->get('status');
-        $this->db->select('n.*, s.name student_name')->from('whatsapp_notifications n')->join('students s', 's.id=n.student_id');
+        $this->db->select('n.*, s.name student_name')->from('whatsapp_notifications n')->join('students s', 's.id=n.student_id')->where('n.school_id', $this->sid);
         if (in_array($st, array('menunggu', 'mengirim', 'terkirim', 'gagal'), TRUE)) $this->db->where('n.status', $st);
         $rows = $this->db->order_by('n.id', 'DESC')->limit(500)->get()->result();
         $counts = array();
-        foreach ($this->db->query('SELECT status, COUNT(*) c FROM whatsapp_notifications GROUP BY status')->result() as $r) { $counts[$r->status] = (int)$r->c; }
+        foreach ($this->db->query('SELECT status, COUNT(*) c FROM whatsapp_notifications WHERE school_id=? GROUP BY status', array($this->sid))->result() as $r) { $counts[$r->status] = (int)$r->c; }
         $this->load->library('whatsapp');
         $this->render('wa/index', array('title' => 'Notifikasi WhatsApp', 'rows' => $rows, 'counts' => $counts, 'st' => $st, 'configured' => $this->whatsapp->configured()));
     }
@@ -26,7 +26,7 @@ class Wa extends MY_Controller
         $this->require_post();
         $id = (int)$this->input->post('id');
         $this->db->update('whatsapp_notifications', array('status' => 'menunggu', 'attempts' => 0, 'next_retry_at' => NULL, 'updated_at' => date('Y-m-d H:i:s')),
-            array('id' => $id, 'status' => 'gagal'));
+            array('id' => $id, 'school_id' => $this->sid, 'status' => 'gagal'));
         audit('kirim_ulang_wa', 'id=' . $id);
         $this->flash('success', 'Pesan dimasukkan kembali ke antrean.');
         redirect('wa');
@@ -35,7 +35,7 @@ class Wa extends MY_Controller
     public function resend_all()
     {
         $this->require_post();
-        $this->db->query("UPDATE whatsapp_notifications SET status='menunggu', attempts=0, next_retry_at=NULL, updated_at=? WHERE status='gagal' AND phone IS NOT NULL", array(date('Y-m-d H:i:s')));
+        $this->db->query("UPDATE whatsapp_notifications SET status='menunggu', attempts=0, next_retry_at=NULL, updated_at=? WHERE school_id=? AND status='gagal' AND phone IS NOT NULL", array(date('Y-m-d H:i:s'), $this->sid));
         $n = $this->db->affected_rows();
         audit('kirim_ulang_semua_wa', $n . ' pesan');
         $this->flash('success', $n . ' pesan gagal dimasukkan kembali ke antrean.');

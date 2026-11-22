@@ -11,7 +11,7 @@ class Ekskul extends MY_Controller
 
     private function load_ekskul($id)
     {
-        $x = $this->db->get_where('extracurriculars', array('id' => (int)$id))->row();
+        $x = $this->db->get_where('extracurriculars', array('id' => (int)$id, 'school_id' => $this->sid))->row();
         if (!$x) show_404();
         return $x;
     }
@@ -27,7 +27,7 @@ class Ekskul extends MY_Controller
         $members = $this->db->query("SELECT m.*, s.name, s.nis, c.name class_name FROM extracurricular_members m JOIN students s ON s.id=m.student_id LEFT JOIN classes c ON c.id=s.class_id
             WHERE m.extracurricular_id=? ORDER BY FIELD(m.status,'menunggu','aktif','ditolak','keluar'), c.name, s.name", array($x->id))->result();
         $students = $this->db->query("SELECT s.id, CONCAT(s.name, ' (', IFNULL(c.name,'-'), ')') label FROM students s LEFT JOIN classes c ON c.id=s.class_id
-            WHERE s.is_active=1 AND s.deleted_at IS NULL AND s.id NOT IN (SELECT student_id FROM extracurricular_members WHERE extracurricular_id=? AND status IN ('aktif','menunggu')) ORDER BY c.name, s.name", array($x->id))->result();
+            WHERE s.school_id=? AND s.is_active=1 AND s.deleted_at IS NULL AND s.id NOT IN (SELECT student_id FROM extracurricular_members WHERE extracurricular_id=? AND status IN ('aktif','menunggu')) ORDER BY c.name, s.name", array($this->sid, $x->id))->result();
         $this->render('ekskul/anggota', array('title' => 'Anggota ' . $x->name, 'x' => $x, 'members' => $members, 'students' => $students, 'active' => $this->active_count($x->id)));
     }
 
@@ -36,7 +36,7 @@ class Ekskul extends MY_Controller
         $this->require_post();
         $x = $this->load_ekskul($id);
         $sid = (int)$this->input->post('student_id');
-        $st = $this->db->get_where('students', array('id' => $sid, 'deleted_at' => NULL))->row();
+        $st = $this->db->get_where('students', array('id' => $sid, 'school_id' => $this->sid, 'deleted_at' => NULL))->row();
         if (!$st) { $this->flash('danger', 'Siswa tidak ditemukan.'); redirect('ekskul/anggota/' . $x->id); }
         if ($x->quota && $this->active_count($x->id) >= (int)$x->quota) { $this->flash('danger', 'Kuota penuh.'); redirect('ekskul/anggota/' . $x->id); }
         $now = date('Y-m-d H:i:s');
@@ -50,7 +50,7 @@ class Ekskul extends MY_Controller
     public function status($mid)
     {
         $this->require_post();
-        $m = $this->db->get_where('extracurricular_members', array('id' => (int)$mid))->row();
+        $m = $this->db->query('SELECT m.* FROM extracurricular_members m JOIN extracurriculars x ON x.id=m.extracurricular_id WHERE m.id=? AND x.school_id=?', array((int)$mid, $this->sid))->row();
         if (!$m) show_404();
         $x = $this->load_ekskul($m->extracurricular_id);
         $act = $this->input->post('action');

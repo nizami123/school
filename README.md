@@ -1,6 +1,8 @@
-# QR School Attendance
+# Velano School (multi sekolah)
 
 Absensi siswa per mata pelajaran berbasis QR Code + notifikasi WhatsApp. CodeIgniter 3 · MySQL · Bootstrap 5 · PWA.
+
+**Multi sekolah:** baca `docs/PANDUAN_MULTI_SEKOLAH.md` (migrasi dari versi 1 sekolah, Super Admin, kuota langganan, impor/ekspor).
 
 **Mulai di sini:** `docs/PANDUAN_INSTALASI_CPANEL.md` (instalasi), `docs/PANDUAN_WHATSAPP.md`, `docs/STRUKTUR_DATABASE.md`, `docs/CATATAN_PENGUJIAN.md`.
 

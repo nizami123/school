@@ -23,8 +23,8 @@ class Report_model extends CI_Model
 
     private function where($f, &$args, $alias = 'ses')
     {
-        $w = " WHERE $alias.session_date BETWEEN ? AND ?";
-        $args = array($f['from'], $f['to']);
+        $w = " WHERE $alias.school_id=? AND $alias.session_date BETWEEN ? AND ?";
+        $args = array(school_id(), $f['from'], $f['to']);
         if ($f['semester_id']) { $w .= " AND $alias.semester_id=?"; $args[] = $f['semester_id']; }
         elseif ($f['year_id']) { $w .= " AND $alias.semester_id IN (SELECT id FROM semesters WHERE academic_year_id=?)"; $args[] = $f['year_id']; }
         if ($f['class_id']) { $w .= " AND $alias.class_id=?"; $args[] = $f['class_id']; }
@@ -92,7 +92,7 @@ class Report_model extends CI_Model
                 }
                 return array($title, array('Tanggal', 'NIS', 'Nama', 'Kelas', 'Mata Pelajaran', 'Guru', 'Status', 'Jam', 'Catatan'), $rows);
             case 'whatsapp':
-                $q = $this->db->query("SELECT n.created_at, st.name, n.phone, n.notif_type, n.status, n.attempts, n.sent_at, n.response FROM whatsapp_notifications n JOIN students st ON st.id=n.student_id WHERE n.notif_date BETWEEN ? AND ? ORDER BY n.id DESC LIMIT 5000", array($f['from'], $f['to']));
+                $q = $this->db->query("SELECT n.created_at, st.name, n.phone, n.notif_type, n.status, n.attempts, n.sent_at, n.response FROM whatsapp_notifications n JOIN students st ON st.id=n.student_id WHERE n.school_id=? AND n.notif_date BETWEEN ? AND ? ORDER BY n.id DESC LIMIT 5000", array(school_id(), $f['from'], $f['to']));
                 $rows = array();
                 foreach ($q->result() as $r) { $rows[] = array($r->created_at, $r->name, $r->phone, $r->notif_type, status_label($r->status), $r->attempts, $r->sent_at ?: '-', mb_substr((string)$r->response, 0, 120)); }
                 return array($title, array('Dibuat', 'Siswa', 'Nomor', 'Jenis', 'Status', 'Percobaan', 'Terkirim', 'Respons API'), $rows);
@@ -103,7 +103,7 @@ class Report_model extends CI_Model
     /** Rekap satu siswa: baris per tanggal, kolom per mata pelajaran. */
     public function student_matrix($student_id, $f)
     {
-        $q = $this->db->query("SELECT ses.session_date, sub.name subject, ses.start_time, r.status, r.scanned_at FROM attendance_records r JOIN attendance_sessions ses ON ses.id=r.session_id JOIN subjects sub ON sub.id=ses.subject_id WHERE r.student_id=? AND ses.session_date BETWEEN ? AND ? ORDER BY ses.session_date, ses.start_time", array($student_id, $f['from'], $f['to']));
+        $q = $this->db->query("SELECT ses.session_date, sub.name subject, ses.start_time, r.status, r.scanned_at FROM attendance_records r JOIN attendance_sessions ses ON ses.id=r.session_id JOIN subjects sub ON sub.id=ses.subject_id WHERE ses.school_id=? AND r.student_id=? AND ses.session_date BETWEEN ? AND ? ORDER BY ses.session_date, ses.start_time", array(school_id(), $student_id, $f['from'], $f['to']));
         return $q->result();
     }
 
@@ -118,8 +118,8 @@ class Report_model extends CI_Model
                 ROUND(SUM(r.status IN ('hadir','terlambat'))*100/NULLIF(COUNT(r.id),0),1) pct
             FROM students st LEFT JOIN classes c ON c.id=st.class_id
             LEFT JOIN (SELECT r2.* FROM attendance_records r2 JOIN attendance_sessions s2 ON s2.id=r2.session_id WHERE s2.session_date BETWEEN ? AND ?) r ON r.student_id=st.id
-            WHERE st.deleted_at IS NULL AND st.is_active=1";
-        $a = array($from, $to);
+            WHERE st.school_id=? AND st.deleted_at IS NULL AND st.is_active=1";
+        $a = array($from, $to, school_id());
         if ($class_id) { $sql .= ' AND st.class_id=?'; $a[] = (int)$class_id; }
         if ($student_id) { $sql .= ' AND st.id=?'; $a[] = (int)$student_id; }
         $sql .= ' GROUP BY st.id, st.nis, st.name, c.name ORDER BY c.name, st.name';

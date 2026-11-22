@@ -12,7 +12,7 @@ class Scan extends MY_Controller
 
     private function load_session($id)
     {
-        $s = $this->db->query('SELECT s.*, c.name class_name, sub.name subject_name, t.name teacher_name FROM attendance_sessions s JOIN classes c ON c.id=s.class_id JOIN subjects sub ON sub.id=s.subject_id JOIN teachers t ON t.id=s.teacher_id WHERE s.id=?', array((int)$id))->row();
+        $s = $this->db->query('SELECT s.*, c.name class_name, sub.name subject_name, t.name teacher_name FROM attendance_sessions s JOIN classes c ON c.id=s.class_id JOIN subjects sub ON sub.id=s.subject_id JOIN teachers t ON t.id=s.teacher_id WHERE s.id=? AND s.school_id=?', array((int)$id, $this->sid))->row();
         if (!$s) show_404();
         if ($this->role === 'guru' && (int)$s->teacher_id !== $this->teacher_id) show_error('Sesi ini bukan milik Anda.', 403, 'Akses Ditolak');
         return $s;
@@ -24,17 +24,17 @@ class Scan extends MY_Controller
     {
         $this->require_post();
         $sid = (int)$this->input->post('schedule_id');
-        $sc = $this->db->get_where('schedules', array('id' => $sid))->row();
+        $sc = $this->db->get_where('schedules', array('id' => $sid, 'school_id' => $this->sid))->row();
         if (!$sc) show_404();
         if ($this->role === 'guru' && (int)$sc->teacher_id !== $this->teacher_id) show_error('Jadwal ini bukan jadwal Anda.', 403, 'Akses Ditolak');
         if ($this->role === 'guru' && (int)$sc->day !== (int)date('N')) { $this->flash('danger', 'Jadwal ini bukan untuk hari ini.'); redirect('dashboard'); }
         $date = date('Y-m-d');
-        $ses = $this->db->get_where('attendance_sessions', array('schedule_id' => $sid, 'session_date' => $date))->row();
+        $ses = $this->db->get_where('attendance_sessions', array('school_id' => $this->sid, 'schedule_id' => $sid, 'session_date' => $date))->row();
         $now = date('Y-m-d H:i:s');
         if (!$ses) {
-            $total = (int)$this->db->where(array('class_id' => $sc->class_id, 'is_active' => 1, 'deleted_at' => NULL))->count_all_results('students');
+            $total = (int)$this->db->where(array('school_id' => $this->sid, 'class_id' => $sc->class_id, 'is_active' => 1, 'deleted_at' => NULL))->count_all_results('students');
             $late = date('H:i:s', strtotime($date . ' ' . $sc->start_time) + (int)setting('late_minutes', 15) * 60);
-            $this->db->insert('attendance_sessions', array('schedule_id' => $sc->id, 'semester_id' => $sc->semester_id, 'class_id' => $sc->class_id, 'subject_id' => $sc->subject_id,
+            $this->db->insert('attendance_sessions', array('school_id' => $this->sid, 'schedule_id' => $sc->id, 'semester_id' => $sc->semester_id, 'class_id' => $sc->class_id, 'subject_id' => $sc->subject_id,
                 'teacher_id' => $sc->teacher_id, 'session_date' => $date, 'start_time' => $sc->start_time, 'end_time' => $sc->end_time, 'late_limit' => $late,
                 'total_students' => $total, 'status' => 'open', 'started_by' => $this->uid, 'started_at' => $now, 'created_at' => $now, 'updated_at' => $now));
             $id = $this->db->insert_id();
@@ -72,8 +72,8 @@ class Scan extends MY_Controller
     {
         $s = $this->load_session($id);
         $present = $this->db->query("SELECT st.name, r.status, r.scanned_at FROM attendance_records r JOIN students st ON st.id=r.student_id WHERE r.session_id=? AND r.status IN ('hadir','terlambat') ORDER BY r.scanned_at DESC LIMIT 200", array($s->id))->result();
-        $missing = $this->db->query("SELECT st.name FROM students st WHERE st.class_id=? AND st.is_active=1 AND st.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM attendance_records r WHERE r.session_id=? AND r.student_id=st.id AND r.status IN ('hadir','terlambat')) ORDER BY st.name", array($s->class_id, $s->id))->result();
-        $recent = $this->db->query("SELECT result, message, created_at FROM scan_logs WHERE session_id=? ORDER BY id DESC LIMIT 8", array($s->id))->result();
+        $missing = $this->db->query("SELECT st.name FROM students st WHERE st.school_id=? AND st.class_id=? AND st.is_active=1 AND st.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM attendance_records r WHERE r.session_id=? AND r.student_id=st.id AND r.status IN ('hadir','terlambat')) ORDER BY st.name", array($this->sid, $s->class_id, $s->id))->result();
+        $recent = $this->db->query("SELECT result, message, created_at FROM scan_logs WHERE school_id=? AND session_id=? ORDER BY id DESC LIMIT 8", array($this->sid, $s->id))->result();
         $pl = array();
         foreach ($present as $p) { $pl[] = array('name' => $p->name, 'status' => $p->status, 'time' => date('H.i', strtotime($p->scanned_at))); }
         $ml = array();
@@ -162,7 +162,7 @@ class Scan extends MY_Controller
 
     public function history()
     {
-        $w = $this->role === 'guru' ? 's.teacher_id=' . (int)$this->teacher_id : '1=1';
+        $w = 's.school_id=' . (int)$this->sid . ($this->role === 'guru' ? ' AND s.teacher_id=' . (int)$this->teacher_id : '');
         $rows = $this->db->query("SELECT s.*, c.name class_name, sub.name subject_name, t.name teacher_name,
             (SELECT COUNT(*) FROM attendance_records r WHERE r.session_id=s.id AND r.status IN ('hadir','terlambat')) present,
             (SELECT COUNT(*) FROM attendance_records r WHERE r.session_id=s.id) total
@@ -173,7 +173,7 @@ class Scan extends MY_Controller
 
     public function notifications()
     {
-        $w = $this->role === 'guru' ? 'ses.teacher_id=' . (int)$this->teacher_id : '1=1';
+        $w = 'n.school_id=' . (int)$this->sid . ($this->role === 'guru' ? ' AND ses.teacher_id=' . (int)$this->teacher_id : '');
         $rows = $this->db->query("SELECT n.*, st.name student_name FROM whatsapp_notifications n JOIN students st ON st.id=n.student_id LEFT JOIN attendance_sessions ses ON ses.id=n.session_id WHERE $w ORDER BY n.id DESC LIMIT 200")->result();
         $this->render('scan/notifications', array('title' => 'Riwayat Notifikasi WhatsApp', 'rows' => $rows));
     }

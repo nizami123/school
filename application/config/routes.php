@@ -1,11 +1,15 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed');
 
-$route['default_controller'] = 'dashboard';
+$route['default_controller'] = 'home';
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
 
 $route['login'] = 'auth/login';
 $route['logout'] = 'auth/logout';
+$route['setup-super'] = 'setup';
+$route['manifest.webmanifest'] = 'pwa/manifest';
+$route['super'] = 'superadmin';
+$route['super/(.+)'] = 'superadmin/$1';
 
 // Master data (CRUD generik)
 $route['master/schedules/week'] = 'master/week';

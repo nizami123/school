@@ -22,8 +22,8 @@ class Portal extends MY_Controller
             redirect('portal/profil');
         }
         $this->children = $this->db->query("SELECT s.id, s.nis, s.name, s.photo, s.class_id, c.name class_name FROM student_parents sp
-            JOIN students s ON s.id=sp.student_id AND s.deleted_at IS NULL AND s.is_active=1 LEFT JOIN classes c ON c.id=s.class_id
-            WHERE sp.parent_id=? ORDER BY s.name", array($this->parent_id))->result();
+            JOIN students s ON s.id=sp.student_id AND s.deleted_at IS NULL AND s.is_active=1 AND s.school_id=? LEFT JOIN classes c ON c.id=s.class_id
+            WHERE sp.parent_id=? ORDER BY s.name", array($this->sid, $this->parent_id))->result();
         foreach ($this->children as $c) { $this->child_ids[] = (int)$c->id; }
         $want = (int)$this->input->get('anak');
         if (!$want) $want = (int)$this->session->userdata('child_id');
@@ -56,8 +56,8 @@ class Portal extends MY_Controller
     private function ann_where(&$args)
     {
         $cls = $this->class_ids();
-        $w = "a.is_active=1 AND a.publish_date<=?";
-        $args = array(date('Y-m-d'));
+        $w = "a.school_id=? AND a.is_active=1 AND a.publish_date<=?";
+        $args = array($this->sid, date('Y-m-d'));
         if ($cls) { $w .= ' AND (a.class_id IS NULL OR a.class_id IN (' . implode(',', $cls) . '))'; } else { $w .= ' AND a.class_id IS NULL'; }
         return $w;
     }
@@ -77,12 +77,12 @@ class Portal extends MY_Controller
         $d['today_status'] = $this->db->query("SELECT r.status, r.scanned_at, sub.name subject, ses.start_time, ses.end_time FROM attendance_records r
             JOIN attendance_sessions ses ON ses.id=r.session_id JOIN subjects sub ON sub.id=ses.subject_id WHERE r.student_id=? AND ses.session_date=? ORDER BY ses.start_time", array($ch->id, $today))->result();
         $d['schedule'] = $ch->class_id ? $this->db->query("SELECT sc.start_time, sc.end_time, sc.room, sub.name subject, t.name teacher FROM schedules sc JOIN semesters sm ON sm.id=sc.semester_id AND sm.is_active=1
-            JOIN subjects sub ON sub.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id WHERE sc.class_id=? AND sc.day=? ORDER BY sc.start_time", array($ch->class_id, date('N')))->result() : array();
+            JOIN subjects sub ON sub.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id WHERE sc.school_id=? AND sc.class_id=? AND sc.day=? ORDER BY sc.start_time", array($this->sid, $ch->class_id, date('N')))->result() : array();
         $m = $this->Report_model->monthly(date('Y-m'), 0, $ch->id);
         $d['month'] = $m ? $m[0] : NULL;
         $aw = $this->ann_where($a);
         $d['ann'] = $this->db->query("SELECT a.* FROM announcements a WHERE $aw ORDER BY a.is_pinned DESC, a.publish_date DESC, a.id DESC LIMIT 3", $a)->result();
-        $d['events'] = $this->db->query("SELECT * FROM academic_events WHERE end_date>=? AND start_date<=? ORDER BY start_date LIMIT 4", array($today, date('Y-m-d', strtotime('+30 days'))))->result();
+        $d['events'] = $this->db->query("SELECT * FROM academic_events WHERE school_id=? AND end_date>=? AND start_date<=? ORDER BY start_date LIMIT 4", array($this->sid, $today, date('Y-m-d', strtotime('+30 days'))))->result();
         $in = $this->db->query("SELECT COUNT(*) n, IFNULL(SUM(amount-paid_total),0) sisa FROM invoices WHERE student_id=? AND status IN ('belum','sebagian')", array($ch->id))->row();
         $d['unpaid'] = $in;
         $d['leave_pending'] = (int)$this->db->where(array('student_id' => $ch->id, 'status' => 'menunggu'))->count_all_results('leave_requests');
@@ -117,8 +117,8 @@ class Portal extends MY_Controller
         if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $ym)) $ym = date('Y-m');
         $from = $ym . '-01'; $to = date('Y-m-t', strtotime($from));
         $rows = $this->child->class_id ? $this->db->query("SELECT sc.day, sc.start_time, sc.end_time, sc.room, sub.name subject, t.name teacher FROM schedules sc JOIN semesters sm ON sm.id=sc.semester_id AND sm.is_active=1
-            JOIN subjects sub ON sub.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id WHERE sc.class_id=? ORDER BY sc.day, sc.start_time", array($this->child->class_id))->result() : array();
-        $events = $this->db->query('SELECT * FROM academic_events WHERE end_date>=? AND start_date<=? ORDER BY start_date', array($from, $to))->result();
+            JOIN subjects sub ON sub.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id WHERE sc.school_id=? AND sc.class_id=? ORDER BY sc.day, sc.start_time", array($this->sid, $this->child->class_id))->result() : array();
+        $events = $this->db->query('SELECT * FROM academic_events WHERE school_id=? AND end_date>=? AND start_date<=? ORDER BY start_date', array($this->sid, $from, $to))->result();
         $this->show('portal/jadwal', array('title' => 'Jadwal & Kalender', 'rows' => $rows, 'events' => $events, 'ym' => $ym,
             'prev' => date('Y-m', strtotime($from . ' -1 month')), 'next' => date('Y-m', strtotime($from . ' +1 month')), 'tab' => $this->input->get('tab') === 'kalender' ? 'kalender' : 'jadwal'));
     }
@@ -194,7 +194,7 @@ class Portal extends MY_Controller
         if ($err === '') { list($file, $uerr) = upload_private('attachment'); if ($uerr !== '') $err = $uerr; }
         if ($err !== '') { $this->flash('danger', $err); redirect('portal/izin'); }
         $now = date('Y-m-d H:i:s');
-        $this->db->insert('leave_requests', array('student_id' => $this->child->id, 'parent_id' => $this->parent_id, 'leave_type' => $type, 'date_from' => $from, 'date_to' => $to,
+        $this->db->insert('leave_requests', array('school_id' => $this->sid, 'student_id' => $this->child->id, 'parent_id' => $this->parent_id, 'leave_type' => $type, 'date_from' => $from, 'date_to' => $to,
             'reason' => $reason, 'attachment' => $file, 'status' => 'menunggu', 'created_at' => $now, 'updated_at' => $now));
         audit('ajukan_izin', 'siswa=' . $this->child->id);
         $this->flash('success', 'Pengajuan terkirim. Menunggu persetujuan sekolah.');
@@ -204,7 +204,7 @@ class Portal extends MY_Controller
     public function izin_batal($id)
     {
         $this->require_post();
-        $lr = $this->db->get_where('leave_requests', array('id' => (int)$id, 'parent_id' => $this->parent_id, 'status' => 'menunggu'))->row();
+        $lr = $this->db->get_where('leave_requests', array('id' => (int)$id, 'school_id' => $this->sid, 'parent_id' => $this->parent_id, 'status' => 'menunggu'))->row();
         if (!$lr) { $this->flash('warning', 'Pengajuan tidak dapat dibatalkan.'); redirect('portal/izin'); }
         $this->db->update('leave_requests', array('status' => 'dibatalkan', 'updated_at' => date('Y-m-d H:i:s')), array('id' => $lr->id));
         $this->flash('success', 'Pengajuan dibatalkan.');
@@ -213,7 +213,7 @@ class Portal extends MY_Controller
 
     public function lampiran($id)
     {
-        $lr = $this->db->get_where('leave_requests', array('id' => (int)$id))->row();
+        $lr = $this->db->get_where('leave_requests', array('id' => (int)$id, 'school_id' => $this->sid))->row();
         if (!$lr || !$lr->attachment || (int)$lr->parent_id !== $this->parent_id) show_404();
         send_private_file($lr->attachment);
     }
@@ -226,13 +226,13 @@ class Portal extends MY_Controller
         $inv = $this->db->query("SELECT i.*, (SELECT IFNULL(SUM(p.amount),0) FROM payments p WHERE p.invoice_id=i.id AND p.status='menunggu') pending_amt
             FROM invoices i WHERE i.student_id=? AND i.status<>'batal' ORDER BY (i.status='lunas'), i.due_date IS NULL, i.due_date, i.id DESC LIMIT 100", array($this->child->id))->result();
         $pays = $this->db->query("SELECT p.*, i.title FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE i.student_id=? ORDER BY p.id DESC LIMIT 30", array($this->child->id))->result();
-        $infaq = $this->db->where(array('is_active' => 1, 'frequency' => 'bebas'))->order_by('name')->get('fee_types')->result();
+        $infaq = $this->db->where(array('school_id' => $this->sid, 'is_active' => 1, 'frequency' => 'bebas'))->order_by('name')->get('fee_types')->result();
         $this->show('portal/bayar', array('title' => 'Pembayaran', 'inv' => $inv, 'pays' => $pays, 'infaq' => $infaq));
     }
 
     private function own_invoice($id)
     {
-        $inv = $this->db->get_where('invoices', array('id' => (int)$id))->row();
+        $inv = $this->db->get_where('invoices', array('id' => (int)$id, 'school_id' => $this->sid))->row();
         if (!$inv || !$this->own_student($inv->student_id)) show_404();
         return $inv;
     }
@@ -275,7 +275,7 @@ class Portal extends MY_Controller
     {
         $this->require_post();
         $this->need_child();
-        $ft = $this->db->get_where('fee_types', array('id' => (int)$this->input->post('fee_type_id'), 'is_active' => 1, 'frequency' => 'bebas'))->row();
+        $ft = $this->db->get_where('fee_types', array('id' => (int)$this->input->post('fee_type_id'), 'school_id' => $this->sid, 'is_active' => 1, 'frequency' => 'bebas'))->row();
         $amount = (int)preg_replace('/\D/', '', (string)$this->input->post('amount'));
         $err = '';
         if (!$ft) $err = 'Jenis infaq tidak valid.';
@@ -289,7 +289,7 @@ class Portal extends MY_Controller
         if ($err !== '') { $this->flash('danger', $err); redirect('portal/bayar'); }
         $now = date('Y-m-d H:i:s');
         $this->db->trans_start();
-        $this->db->insert('invoices', array('student_id' => $this->child->id, 'fee_type_id' => $ft->id, 'period' => date('YmdHis') . random_int(100, 999), 'title' => $ft->name . ' (' . tanggal_id($now, FALSE) . ')',
+        $this->db->insert('invoices', array('school_id' => $this->sid, 'student_id' => $this->child->id, 'fee_type_id' => $ft->id, 'period' => date('YmdHis') . random_int(100, 999), 'title' => $ft->name . ' (' . tanggal_id($now, FALSE) . ')',
             'amount' => $amount, 'status' => 'belum', 'created_at' => $now, 'updated_at' => $now));
         $iid = $this->db->insert_id();
         $this->db->insert('payments', array('invoice_id' => $iid, 'amount' => $amount, 'method' => 'transfer', 'paid_at' => $now, 'proof' => $file, 'note' => substr(trim((string)$this->input->post('note')), 0, 250) ?: NULL,
@@ -321,7 +321,7 @@ class Portal extends MY_Controller
         $this->need_child();
         $rows = $this->db->query("SELECT x.*, (SELECT COUNT(*) FROM extracurricular_members m WHERE m.extracurricular_id=x.id AND m.status='aktif') filled,
             (SELECT m2.status FROM extracurricular_members m2 WHERE m2.extracurricular_id=x.id AND m2.student_id=?) my_status
-            FROM extracurriculars x WHERE x.is_active=1 ORDER BY x.name", array($this->child->id))->result();
+            FROM extracurriculars x WHERE x.school_id=? AND x.is_active=1 ORDER BY x.name", array($this->child->id, $this->sid))->result();
         $this->show('portal/ekskul', array('title' => 'Ekstrakurikuler', 'rows' => $rows));
     }
 
@@ -329,7 +329,7 @@ class Portal extends MY_Controller
     {
         $this->require_post();
         $this->need_child();
-        $x = $this->db->get_where('extracurriculars', array('id' => (int)$id, 'is_active' => 1))->row();
+        $x = $this->db->get_where('extracurriculars', array('id' => (int)$id, 'school_id' => $this->sid, 'is_active' => 1))->row();
         if (!$x) show_404();
         $filled = (int)$this->db->where(array('extracurricular_id' => $x->id, 'status' => 'aktif'))->count_all_results('extracurricular_members');
         if ($x->quota && $filled >= (int)$x->quota) { $this->flash('danger', 'Kuota kegiatan ini sudah penuh.'); redirect('portal/ekskul'); }
@@ -344,8 +344,8 @@ class Portal extends MY_Controller
     {
         $this->require_post();
         $this->need_child();
-        $this->db->query("UPDATE extracurricular_members SET status='keluar', updated_at=? WHERE extracurricular_id=? AND student_id=? AND status IN ('aktif','menunggu')",
-            array(date('Y-m-d H:i:s'), (int)$id, $this->child->id));
+        $this->db->query("UPDATE extracurricular_members SET status='keluar', updated_at=? WHERE extracurricular_id=? AND student_id=? AND status IN ('aktif','menunggu') AND extracurricular_id IN (SELECT id FROM extracurriculars WHERE school_id=?)",
+            array(date('Y-m-d H:i:s'), (int)$id, $this->child->id, $this->sid));
         $this->flash('success', 'Keikutsertaan dibatalkan.');
         redirect('portal/ekskul');
     }

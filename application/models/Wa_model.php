@@ -33,7 +33,7 @@ class Wa_model extends CI_Model
             JOIN teachers t ON t.id=ses.teacher_id
             LEFT JOIN student_parents sp ON sp.student_id=st.id AND sp.is_primary=1
             LEFT JOIN parents p ON p.id=sp.parent_id
-            WHERE r.id=?", array($record_id))->row();
+            WHERE r.id=? AND ses.school_id=?", array($record_id, school_id()))->row();
         if (!$r || !isset($this->map[$r->status])) return FALSE;
         $type = $this->map[$r->status];
         if (setting($this->toggle[$type], '1') !== '1') return FALSE;
@@ -42,7 +42,7 @@ class Wa_model extends CI_Model
         if (in_array($type, array('hadir', 'terlambat'), TRUE)) {
             if ($policy === 'daily') return FALSE;
             if ($policy === 'first') {
-                $n = $this->db->where('student_id', $r->sid)->where('notif_date', $r->session_date)
+                $n = $this->db->where('school_id', school_id())->where('student_id', $r->sid)->where('notif_date', $r->session_date)
                     ->where_in('notif_type', array('hadir', 'terlambat'))->count_all_results('whatsapp_notifications');
                 if ($n > 0) return FALSE;
             }
@@ -78,7 +78,7 @@ class Wa_model extends CI_Model
         $ok = valid_phone($phone);
         $this->db->db_debug = FALSE;
         $this->db->insert('whatsapp_notifications', array(
-            'record_id' => $record_id, 'session_id' => $session_id, 'student_id' => $student_id, 'parent_id' => $parent_id,
+            'school_id' => school_id(), 'record_id' => $record_id, 'session_id' => $session_id, 'student_id' => $student_id, 'parent_id' => $parent_id,
             'notif_type' => $type, 'notif_date' => $date, 'phone' => $phone ?: NULL, 'message' => $message,
             'params' => json_encode($params), 'template_name' => NULL,
             'status' => $ok ? 'menunggu' : 'gagal', 'attempts' => $ok ? 0 : 3,
@@ -94,9 +94,9 @@ class Wa_model extends CI_Model
         $res = array('sent' => 0, 'failed' => 0, 'configured' => $this->whatsapp->configured());
         if (!$res['configured']) return $res;
         $now = date('Y-m-d H:i:s');
-        $rows = $this->db->query("SELECT * FROM whatsapp_notifications WHERE status='menunggu' AND (next_retry_at IS NULL OR next_retry_at<=?) ORDER BY id LIMIT " . (int)$limit, array($now))->result();
+        $rows = $this->db->query("SELECT * FROM whatsapp_notifications WHERE school_id=? AND status='menunggu' AND (next_retry_at IS NULL OR next_retry_at<=?) ORDER BY id LIMIT " . (int)$limit, array(school_id(), $now))->result();
         foreach ($rows as $n) {
-            $this->db->query("UPDATE whatsapp_notifications SET status='mengirim', updated_at=? WHERE id=? AND status='menunggu'", array($now, $n->id));
+            $this->db->query("UPDATE whatsapp_notifications SET status='mengirim', updated_at=? WHERE id=? AND school_id=? AND status='menunggu'", array($now, $n->id, school_id()));
             if ($this->db->affected_rows() < 1) continue;
             $out = $this->whatsapp->send($n);
             $attempts = $n->attempts + 1;
@@ -113,7 +113,7 @@ class Wa_model extends CI_Model
             }
         }
         // pulihkan baris 'mengirim' yang menggantung > 10 menit
-        $this->db->query("UPDATE whatsapp_notifications SET status='menunggu' WHERE status='mengirim' AND updated_at < ?", array(date('Y-m-d H:i:s', time() - 600)));
+        $this->db->query("UPDATE whatsapp_notifications SET status='menunggu' WHERE school_id=? AND status='mengirim' AND updated_at < ?", array(school_id(), date('Y-m-d H:i:s', time() - 600)));
         return $res;
     }
 }

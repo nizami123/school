@@ -9,7 +9,7 @@ $nav = array(
 );
 $is_act = function ($prefixes) use ($uri) { foreach ($prefixes as $p) { if ($p === 'portal' ? ($uri === 'portal' || $uri === 'portal/index') : strpos($uri, $p) === 0) return TRUE; } return FALSE; };
 ?>
-<header class="topbar guru-top portal-top"><span class="fw-semibold"><i class="bi bi-mortarboard"></i> <?= e($school) ?></span>
+<header class="topbar guru-top portal-top"><span class="fw-semibold"><?php if (!empty($logo)): ?><img src="<?= upload_url('logo/' . $logo) ?>" alt="" style="height:22px;vertical-align:-5px"><?php else: ?><i class="bi bi-mortarboard"></i><?php endif; ?> <?= e($school) ?></span>
   <a href="<?= site_url('logout') ?>" class="text-white text-decoration-none small"><i class="bi bi-box-arrow-right"></i> Keluar</a></header>
 <?php if (!empty($children)): ?>
 <div class="portal-child"><div class="container" style="max-width:760px">

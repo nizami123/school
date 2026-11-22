@@ -19,27 +19,46 @@ class Master extends MY_Controller
         return $all[$key];
     }
 
+    /** Daftar pilihan (id => label) milik sekolah ini saja. */
     protected function lookup($k)
     {
         switch ($k) {
-            case 'classes': $q = 'SELECT id, name AS label FROM classes ORDER BY name'; break;
-            case 'subjects': $q = "SELECT id, CONCAT(code,' - ',name) AS label FROM subjects ORDER BY name"; break;
-            case 'teachers': $q = 'SELECT id, name AS label FROM teachers WHERE is_active=1 ORDER BY name'; break;
-            case 'parents': $q = "SELECT id, CONCAT(name,' (',IFNULL(whatsapp,'-'),')') AS label FROM parents ORDER BY name"; break;
-            case 'years': $q = 'SELECT id, name AS label FROM academic_years ORDER BY start_date DESC'; break;
-            case 'semesters': $q = "SELECT s.id, CONCAT(y.name,' ',s.name) AS label FROM semesters s JOIN academic_years y ON y.id=s.academic_year_id ORDER BY y.start_date DESC, s.start_date DESC"; break;
+            case 'classes': $q = 'SELECT id, name AS label FROM classes WHERE school_id=? ORDER BY name'; break;
+            case 'subjects': $q = "SELECT id, CONCAT(code,' - ',name) AS label FROM subjects WHERE school_id=? ORDER BY name"; break;
+            case 'teachers': $q = 'SELECT id, name AS label FROM teachers WHERE school_id=? AND is_active=1 ORDER BY name'; break;
+            case 'parents': $q = "SELECT id, CONCAT(name,' (',IFNULL(whatsapp,'-'),')') AS label FROM parents WHERE school_id=? ORDER BY name"; break;
+            case 'years': $q = 'SELECT id, name AS label FROM academic_years WHERE school_id=? ORDER BY start_date DESC'; break;
+            case 'semesters': $q = "SELECT s.id, CONCAT(y.name,' ',s.name) AS label FROM semesters s JOIN academic_years y ON y.id=s.academic_year_id WHERE s.school_id=? ORDER BY y.start_date DESC, s.start_date DESC"; break;
             case 'days': return array(1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu');
             default: return array();
         }
         $o = array();
-        foreach ($this->db->query($q)->result() as $r) { $o[$r->id] = $r->label; }
+        foreach ($this->db->query($q, array($this->sid))->result() as $r) { $o[$r->id] = $r->label; }
         return $o;
+    }
+
+    /** Tabel asal tiap jenis pilihan, untuk memastikan ID yang dikirim form memang milik sekolah ini. */
+    private function lookup_table($k)
+    {
+        $m = array('classes' => 'classes', 'subjects' => 'subjects', 'teachers' => 'teachers', 'parents' => 'parents', 'years' => 'academic_years', 'semesters' => 'semesters');
+        return isset($m[$k]) ? $m[$k] : NULL;
+    }
+
+    /** Satu baris entitas milik sekolah ini (akun admin: hanya role admin). */
+    private function row($e, $id)
+    {
+        $w = array('id' => (int)$id, 'school_id' => $this->sid);
+        if ($e['table'] === 'users') $w['role_id'] = 1;
+        return $this->db->get_where($e['table'], $w)->row();
     }
 
     private function list_sql($e)
     {
+        $alias = explode(' ', trim($e['from']));
+        $alias = end($alias);
         $sql = 'SELECT ' . $e['select'] . ' FROM ' . $e['from'] . ' ' . implode(' ', $e['joins']);
-        if (!empty($e['where'])) $sql .= ' WHERE ' . $e['where'];
+        $sql .= ' WHERE ' . $alias . '.school_id=' . (int)$this->sid;
+        if (!empty($e['where'])) $sql .= ' AND (' . $e['where'] . ')';
         if (!empty($e['order'])) $sql .= ' ORDER BY ' . $e['order'];
         return $sql;
     }
@@ -59,15 +78,16 @@ class Master extends MY_Controller
         $copy = (int)$this->input->get('copy');
         $load = $id ?: $copy;
         if ($load) {
-            $row = $this->db->get_where($e['table'], array('id' => $load))->row_array();
+            $row = $this->row($e, $load);
             if (!$row) show_404();
+            $row = (array)$row;
             $row = $this->virtual_values($key, $load, $row);
             if ($copy) { unset($row['id']); }
         } else {
             $row = array('is_active' => 1);
             if (!empty($e['defaults'])) $row = array_merge($row, $e['defaults']);
             if ($key === 'schedules') { $s = $this->active_semester(); if ($s) $row['semester_id'] = $s->id; }
-            if ($key === 'classes') { $y = $this->db->get_where('academic_years', array('is_active' => 1))->row(); if ($y) $row['academic_year_id'] = $y->id; }
+            if ($key === 'classes') { $y = $this->db->get_where('academic_years', array('school_id' => $this->sid, 'is_active' => 1))->row(); if ($y) $row['academic_year_id'] = $y->id; }
         }
         $old = $this->session->flashdata('old');
         if (is_array($old)) $row = array_merge($row, $old);
@@ -102,6 +122,7 @@ class Master extends MY_Controller
         $this->require_post();
         $e = $this->ent($key);
         $id = (int)$this->input->post('id');
+        if ($id && !$this->row($e, $id)) show_404();
         $data = array();
         $this->errors = array();
         foreach ($e['fields'] as $f) {
@@ -115,10 +136,18 @@ class Master extends MY_Controller
             if ($f['type'] === 'number' && $v !== NULL) $v = (int)$v;
             if ($f['type'] === 'email' && $v !== NULL && !filter_var($v, FILTER_VALIDATE_EMAIL)) $this->errors[] = 'Format email tidak valid.';
             if ($f['type'] === 'select' && $v !== NULL && is_array($f['options']) && !isset($f['options'][$v])) $this->errors[] = $f['label'] . ' tidak valid.';
+            if ($f['type'] === 'select' && $v !== NULL && is_string($f['options'])) {   // pilihan harus milik sekolah ini
+                $tbl = $this->lookup_table(substr($f['options'], 7));
+                if ($tbl !== NULL && !$this->own($tbl, $v)) { $this->errors[] = $f['label'] . ' tidak valid.'; continue; }
+            }
             if (!empty($f['unique']) && $v !== NULL) {
-                $this->db->where($n, $v);
-                if ($id) $this->db->where('id !=', $id);
-                if ($this->db->count_all_results($e['table']) > 0) $this->errors[] = $f['label'] . ' "' . $v . '" sudah digunakan.';
+                if ($key === 'users' && $n === 'username') {
+                    if (username_taken($v, $id)) $this->errors[] = $f['label'] . ' "' . $v . '" sudah digunakan.';
+                } else {
+                    $this->db->where(array($n => $v, 'school_id' => $this->sid));
+                    if ($id) $this->db->where('id !=', $id);
+                    if ($this->db->count_all_results($e['table']) > 0) $this->errors[] = $f['label'] . ' "' . $v . '" sudah digunakan.';
+                }
             }
             $data[$n] = $v;
         }
@@ -133,9 +162,10 @@ class Master extends MY_Controller
         $now = date('Y-m-d H:i:s');
         $data['updated_at'] = $now;
         if ($id) {
-            $this->db->update($e['table'], $data, array('id' => $id));
+            $this->db->update($e['table'], $data, array('id' => $id, 'school_id' => $this->sid));
             $new = FALSE;
         } else {
+            $data['school_id'] = $this->sid;
             $data['created_at'] = $now;
             $this->db->insert($e['table'], $data);
             $id = $this->db->insert_id();
@@ -153,12 +183,12 @@ class Master extends MY_Controller
         $this->require_post();
         $e = $this->ent($key);
         if (empty($e['toggle'])) show_404();
-        $row = $this->db->get_where($e['table'], array('id' => (int)$id))->row();
+        $row = $this->row($e, $id);
         if (!$row) show_404();
         if ($key === 'users' && (int)$id === $this->uid) { $this->flash('danger', 'Anda tidak dapat menonaktifkan akun sendiri.'); redirect('master/users'); }
         $new = $row->is_active ? 0 : 1;
-        $this->db->update($e['table'], array('is_active' => $new, 'updated_at' => date('Y-m-d H:i:s')), array('id' => (int)$id));
-        if ($key === 'teachers' && $row->user_id) $this->db->update('users', array('is_active' => $new), array('id' => $row->user_id));
+        $this->db->update($e['table'], array('is_active' => $new, 'updated_at' => date('Y-m-d H:i:s')), array('id' => (int)$id, 'school_id' => $this->sid));
+        if ($key === 'teachers' && $row->user_id) $this->db->update('users', array('is_active' => $new), array('id' => $row->user_id, 'school_id' => $this->sid));
         audit('toggle_' . $key, 'id=' . $id . ' => ' . $new);
         $this->flash('success', 'Status berhasil diubah.');
         redirect('master/' . $key);
@@ -169,25 +199,26 @@ class Master extends MY_Controller
         $this->require_post();
         $e = $this->ent($key);
         $id = (int)$id;
+        if (!$this->row($e, $id)) show_404();
         if ($key === 'users' && $id === $this->uid) { $this->flash('danger', 'Anda tidak dapat menghapus akun sendiri.'); redirect('master/users'); }
         if (!empty($e['soft'])) {
             $now = date('Y-m-d H:i:s');
-            $this->db->update($e['table'], array('deleted_at' => $now, 'is_active' => 0, 'updated_at' => $now), array('id' => $id));
+            $this->db->update($e['table'], array('deleted_at' => $now, 'is_active' => 0, 'updated_at' => $now), array('id' => $id, 'school_id' => $this->sid));
             $this->db->where(array('student_id' => $id, 'is_active' => 1))->update('student_qr_codes', array('is_active' => 0, 'deactivated_at' => $now));
             audit('hapus_' . $key, 'id=' . $id);
             $this->flash('success', 'Data dihapus (riwayat absensi tetap tersimpan).');
             redirect('master/' . $key);
         }
         $user_id = NULL;
-        if ($key === 'teachers') { $t = $this->db->get_where('teachers', array('id' => $id))->row(); $user_id = $t ? $t->user_id : NULL; }
+        if ($key === 'teachers') { $t = $this->db->get_where('teachers', array('id' => $id, 'school_id' => $this->sid))->row(); $user_id = $t ? $t->user_id : NULL; }
         $old = $this->db->db_debug;
         $this->db->db_debug = FALSE;
-        $ok = $this->db->delete($e['table'], array('id' => $id));
+        $ok = $this->db->delete($e['table'], array('id' => $id, 'school_id' => $this->sid));
         $this->db->db_debug = $old;
         if (!$ok) {
             $this->flash('danger', 'Data tidak dapat dihapus karena masih dipakai data lain (mis. jadwal/absensi). Nonaktifkan saja bila tersedia.');
         } else {
-            if ($user_id) $this->db->delete('users', array('id' => $user_id));
+            if ($user_id) $this->db->delete('users', array('id' => $user_id, 'school_id' => $this->sid));
             audit('hapus_' . $key, 'id=' . $id);
             $this->flash('success', 'Data berhasil dihapus.');
         }
@@ -198,6 +229,10 @@ class Master extends MY_Controller
 
     private function before_students($d, $id)
     {
+        if (!$id) {   // kuota langganan: jumlah siswa terdaftar tidak boleh melebihi kuota paket
+            $left = school_quota_left();
+            if ($left !== NULL && $left < 1) $this->errors[] = 'Kuota siswa paket langganan sekolah ini sudah penuh. Hubungi Velano School untuk menambah kuota.';
+        }
         if (!empty($_FILES['photo']['name'])) {
             $this->load->library('upload', array('upload_path' => FCPATH . 'uploads/students/', 'allowed_types' => 'jpg|jpeg|png',
                 'max_size' => 2048, 'encrypt_name' => TRUE));
@@ -213,6 +248,7 @@ class Master extends MY_Controller
     private function after_students($id, $new)
     {
         $pid = (int)$this->input->post('parent_id');
+        if ($pid && !$this->own('parents', $pid)) $pid = 0;   // orang tua harus milik sekolah ini
         $this->db->delete('student_parents', array('student_id' => $id));
         if ($pid) $this->db->insert('student_parents', array('student_id' => $id, 'parent_id' => $pid, 'is_primary' => 1));
         if ($new) {
@@ -253,7 +289,7 @@ class Master extends MY_Controller
 
     private function before_classes($d, $id)
     {
-        $this->db->where('name', $d['name']);
+        $this->db->where(array('school_id' => $this->sid, 'name' => $d['name']));
         if (empty($d['academic_year_id'])) $this->db->where('academic_year_id IS NULL', NULL, FALSE); else $this->db->where('academic_year_id', $d['academic_year_id']);
         if ($id) $this->db->where('id !=', $id);
         if ($this->db->count_all_results('classes') > 0) $this->errors[] = 'Kelas "' . $d['name'] . '" sudah ada pada tahun ajaran tersebut.';
@@ -272,10 +308,8 @@ class Master extends MY_Controller
         $username = trim((string)$this->input->post('username'));
         $pw = (string)$this->input->post('password');
         if (!preg_match('/^[A-Za-z0-9_.\-]{3,60}$/', $username)) $this->errors[] = 'Username 3-60 karakter (huruf, angka, titik, strip, underscore).';
-        $t = $id ? $this->db->get_where('teachers', array('id' => $id))->row() : NULL;
-        $this->db->where('username', $username);
-        if ($t && $t->user_id) $this->db->where('id !=', $t->user_id);
-        if ($this->db->count_all_results('users') > 0) $this->errors[] = 'Username "' . $username . '" sudah digunakan.';
+        $t = $id ? $this->db->get_where('teachers', array('id' => $id, 'school_id' => $this->sid))->row() : NULL;
+        if (username_taken($username, ($t && $t->user_id) ? $t->user_id : 0)) $this->errors[] = 'Username "' . $username . '" sudah digunakan.';
         if ((!$t || !$t->user_id) && strlen($pw) < 6) $this->errors[] = 'Password wajib diisi (min. 6 karakter) untuk guru baru.';
         if ($pw !== '' && strlen($pw) < 6) $this->errors[] = 'Password minimal 6 karakter.';
         if (!empty($d['phone'])) $d['phone'] = normalize_phone($d['phone']);
@@ -286,21 +320,21 @@ class Master extends MY_Controller
     {
         $username = trim((string)$this->input->post('username'));
         $pw = (string)$this->input->post('password');
-        $t = $this->db->get_where('teachers', array('id' => $id))->row();
+        $t = $this->db->get_where('teachers', array('id' => $id, 'school_id' => $this->sid))->row();
         $now = date('Y-m-d H:i:s');
         if (!$t->user_id) {
-            $this->db->insert('users', array('role_id' => 2, 'name' => $t->name, 'username' => $username, 'password' => password_hash($pw, PASSWORD_DEFAULT),
+            $this->db->insert('users', array('school_id' => $this->sid, 'role_id' => 2, 'name' => $t->name, 'username' => $username, 'password' => password_hash($pw, PASSWORD_DEFAULT),
                 'is_active' => $t->is_active, 'created_at' => $now, 'updated_at' => $now));
-            $this->db->update('teachers', array('user_id' => $this->db->insert_id()), array('id' => $id));
+            $this->db->update('teachers', array('user_id' => $this->db->insert_id()), array('id' => $id, 'school_id' => $this->sid));
         } else {
             $u = array('name' => $t->name, 'username' => $username, 'is_active' => $t->is_active, 'updated_at' => $now);
             if ($pw !== '') $u['password'] = password_hash($pw, PASSWORD_DEFAULT);
-            $this->db->update('users', $u, array('id' => $t->user_id));
+            $this->db->update('users', $u, array('id' => $t->user_id, 'school_id' => $this->sid));
         }
         $this->db->delete('teacher_subjects', array('teacher_id' => $id));
         $subs = $this->input->post('subject_ids');
         if (is_array($subs)) {
-            foreach (array_unique($subs) as $sid) { $this->db->insert('teacher_subjects', array('teacher_id' => $id, 'subject_id' => (int)$sid)); }
+            foreach (array_unique($subs) as $sid) { if ($this->own('subjects', $sid)) $this->db->insert('teacher_subjects', array('teacher_id' => $id, 'subject_id' => (int)$sid)); }
         }
     }
 
@@ -322,15 +356,15 @@ class Master extends MY_Controller
 
     private function after_academic_years($id, $new)
     {
-        $r = $this->db->get_where('academic_years', array('id' => $id))->row();
-        if ($r->is_active) $this->db->where('id !=', $id)->update('academic_years', array('is_active' => 0));
+        $r = $this->db->get_where('academic_years', array('id' => $id, 'school_id' => $this->sid))->row();
+        if ($r->is_active) $this->db->where(array('id !=' => $id, 'school_id' => $this->sid))->update('academic_years', array('is_active' => 0));
     }
 
     private function before_semesters($d, $id)
     {
         if (!empty($d['start_date']) && $d['start_date'] >= $d['end_date']) $this->errors[] = 'Tanggal selesai harus setelah tanggal mulai.';
         if (!empty($d['academic_year_id']) && !empty($d['name'])) {
-            $this->db->where(array('academic_year_id' => $d['academic_year_id'], 'name' => $d['name']));
+            $this->db->where(array('school_id' => $this->sid, 'academic_year_id' => $d['academic_year_id'], 'name' => $d['name']));
             if ($id) $this->db->where('id !=', $id);
             if ($this->db->count_all_results('semesters') > 0) $this->errors[] = 'Semester tersebut sudah ada pada tahun ajaran ini.';
         }
@@ -339,8 +373,8 @@ class Master extends MY_Controller
 
     private function after_semesters($id, $new)
     {
-        $r = $this->db->get_where('semesters', array('id' => $id))->row();
-        if ($r->is_active) $this->db->where('id !=', $id)->update('semesters', array('is_active' => 0));
+        $r = $this->db->get_where('semesters', array('id' => $id, 'school_id' => $this->sid))->row();
+        if ($r->is_active) $this->db->where(array('id !=' => $id, 'school_id' => $this->sid))->update('semesters', array('is_active' => 0));
     }
 
     private function before_schedules($d, $id)
@@ -361,8 +395,8 @@ class Master extends MY_Controller
         $bs = setting('break_start', ''); $be = setting('break_end', '');
         if ($bs !== '' && $be !== '' && $d['start_time'] < $be . ':00' && $d['end_time'] > $bs . ':00') $err[] = 'Jadwal bertabrakan dengan jam istirahat (' . $bs . '-' . $be . ').';
         $rows = $this->db->query('SELECT sc.id, sc.teacher_id, sc.class_id, c.name cn, t.name tn, sc.start_time, sc.end_time FROM schedules sc JOIN classes c ON c.id=sc.class_id JOIN teachers t ON t.id=sc.teacher_id
-            WHERE sc.semester_id=? AND sc.day=? AND sc.id<>? AND sc.start_time<? AND sc.end_time>? AND (sc.teacher_id=? OR sc.class_id=?)',
-            array($d['semester_id'], $d['day'], (int)$id, $d['end_time'], $d['start_time'], $d['teacher_id'], $d['class_id']))->result();
+            WHERE sc.school_id=? AND sc.semester_id=? AND sc.day=? AND sc.id<>? AND sc.start_time<? AND sc.end_time>? AND (sc.teacher_id=? OR sc.class_id=?)',
+            array($this->sid, $d['semester_id'], $d['day'], (int)$id, $d['end_time'], $d['start_time'], $d['teacher_id'], $d['class_id']))->result();
         foreach ($rows as $r) {
             $w = ' (' . substr($r->start_time, 0, 5) . '-' . substr($r->end_time, 0, 5) . ')';
             if ($r->teacher_id == $d['teacher_id']) $err[] = 'Bentrok: guru ' . $r->tn . ' sudah mengajar di ' . $r->cn . $w . '.';
@@ -379,8 +413,8 @@ class Master extends MY_Controller
         $tid = (int)$this->input->get('teacher_id');
         $sem = (int)$this->input->get('semester_id');
         if (!$sem) { $s = $this->active_semester(); $sem = $s ? (int)$s->id : 0; }
-        $sql = 'SELECT sc.*, c.name class_name, sb.name subject_name, t.name teacher_name FROM schedules sc JOIN classes c ON c.id=sc.class_id JOIN subjects sb ON sb.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id WHERE sc.semester_id=?';
-        $args = array($sem);
+        $sql = 'SELECT sc.*, c.name class_name, sb.name subject_name, t.name teacher_name FROM schedules sc JOIN classes c ON c.id=sc.class_id JOIN subjects sb ON sb.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id WHERE sc.school_id=? AND sc.semester_id=?';
+        $args = array($this->sid, $sem);
         if ($cid) { $sql .= ' AND sc.class_id=?'; $args[] = $cid; }
         if ($tid) { $sql .= ' AND sc.teacher_id=?'; $args[] = $tid; }
         $sql .= ' ORDER BY sc.day, sc.start_time';
@@ -404,7 +438,7 @@ class Master extends MY_Controller
     /** Indeks kolom yang harus berformat Teks (nomor panjang / berawalan 0). */
     private function text_cols($headers)
     {
-        $t = array('nis', 'nisn', 'nip', 'whatsapp', 'wa_ortu', 'no. hp', 'kode_mapel', 'username_guru', 'jam_mulai', 'jam_selesai', 'mulai', 'selesai');
+        $t = array('nis', 'nisn', 'nip', 'whatsapp', 'wa_ortu', 'no. hp', 'no_hp', 'kode_mapel', 'username_guru', 'jam_mulai', 'jam_selesai', 'mulai', 'selesai');
         $o = array();
         foreach ($headers as $i => $h) { if (in_array(strtolower($h), $t, TRUE)) $o[] = $i; }
         return $o;
@@ -431,7 +465,7 @@ class Master extends MY_Controller
             $rows = $this->db->query('SELECT sc.day, c.name class_name, sb.code, u.username, sc.start_time, sc.end_time, sc.room, sb.name subject_name, t.name teacher_name
                 FROM schedules sc JOIN classes c ON c.id=sc.class_id JOIN subjects sb ON sb.id=sc.subject_id JOIN teachers t ON t.id=sc.teacher_id
                 LEFT JOIN users u ON u.id=t.user_id JOIN semesters sm ON sm.id=sc.semester_id
-                WHERE sm.is_active=1 ORDER BY sc.day, c.name, sc.start_time')->result_array();
+                WHERE sc.school_id=? AND sm.is_active=1 ORDER BY sc.day, c.name, sc.start_time', array($this->sid))->result_array();
             foreach ($rows as $r) {
                 $out[] = array(hari_id($r['day']), $r['class_name'], $r['code'], (string)$r['username'], substr($r['start_time'], 0, 5), substr($r['end_time'], 0, 5),
                     (string)$r['room'], $r['subject_name'], $r['teacher_name']);
@@ -473,6 +507,20 @@ class Master extends MY_Controller
                 array('1002', '', 'Siti Aminah', 'P', 'VII A', 'Dewi Lestari', '6281298765432')),
                 $fmt, array('sheet' => 'Siswa', 'text_cols' => $this->text_cols($h)));
         }
+        if ($key === 'teachers') {
+            $h = array('nama', 'nip', 'username', 'password', 'no_hp', 'email', 'mapel', 'status');
+            export_table('template-impor-guru', $h, array(
+                array('Andi Prasetyo, S.Pd', '198501012010011001', 'andi', 'ganti-password-ini', '081234567890', 'andi@sekolah.sch.id', 'MTK; FIS', 'Aktif'),
+                array('Sari Wulandari, S.Pd', '', 'sari', 'ganti-password-ini', '', '', 'BIN', 'Aktif')),
+                $fmt, array('sheet' => 'Guru', 'text_cols' => $this->text_cols($h)));
+        }
+        if ($key === 'parents') {
+            $h = array('nama', 'ayah', 'ibu', 'wali', 'hubungan', 'whatsapp');
+            export_table('template-impor-orang-tua', $h, array(
+                array('Budi Santoso', 'Budi Santoso', 'Dewi Lestari', '', 'Ayah', '081234567890'),
+                array('Dewi Lestari', '', 'Dewi Lestari', '', 'Ibu', '6281298765432')),
+                $fmt, array('sheet' => 'Orang Tua', 'text_cols' => $this->text_cols($h)));
+        }
         if ($key === 'schedules') {
             $h = array('hari', 'kelas', 'kode_mapel', 'username_guru', 'jam_mulai', 'jam_selesai', 'ruang');
             export_table('template-impor-jadwal', $h, array(array('Senin', 'VII A', 'MTK', 'andi', '07:00', '08:30', 'R1')),
@@ -482,8 +530,20 @@ class Master extends MY_Controller
     }
 
     /** Nama kolom baku (huruf kecil, garis bawah) + alias umum. */
-    private function norm_header($h)
+    private function norm_header($h, $key = '')
     {
+        static $parent_alias = array(
+            'nama_kontak' => 'nama', 'nama_ortu' => 'nama', 'kontak' => 'nama', 'nama_orang_tua' => 'nama', 'orang_tua' => 'nama',
+            'nama_ayah' => 'ayah', 'nama_ibu' => 'ibu', 'nama_wali' => 'wali',
+            'wa' => 'whatsapp', 'no_wa' => 'whatsapp', 'no_whatsapp' => 'whatsapp', 'hp' => 'whatsapp', 'no_hp' => 'whatsapp', 'telepon' => 'whatsapp',
+            'relasi' => 'hubungan', 'hubungan_dengan_siswa' => 'hubungan',
+        );
+        static $teacher_alias = array(
+            'nama_guru' => 'nama', 'nama_lengkap' => 'nama', 'name' => 'nama',
+            'hp' => 'no_hp', 'nomor_hp' => 'no_hp', 'telepon' => 'no_hp', 'phone' => 'no_hp', 'no_telepon' => 'no_hp',
+            'mata_pelajaran' => 'mapel', 'mapel_diampu' => 'mapel', 'pelajaran' => 'mapel',
+            'kata_sandi' => 'password', 'sandi' => 'password',
+        );
         static $alias = array(
             'nama_siswa' => 'nama', 'nama_lengkap' => 'nama', 'name' => 'nama',
             'jenis_kelamin' => 'jk', 'l_p' => 'jk', 'gender' => 'jk', 'sex' => 'jk',
@@ -498,6 +558,8 @@ class Master extends MY_Controller
         );
         $h = strtolower(trim(preg_replace('/^\xEF\xBB\xBF/', '', (string)$h)));
         $h = trim(preg_replace('/[^a-z0-9]+/', '_', $h), '_');
+        if ($key === 'parents') return isset($parent_alias[$h]) ? $parent_alias[$h] : $h;
+        if ($key === 'teachers') return isset($teacher_alias[$h]) ? $teacher_alias[$h] : $h;
         return isset($alias[$h]) ? $alias[$h] : $h;
     }
 
@@ -519,7 +581,7 @@ class Master extends MY_Controller
     }
 
     /** Baca CSV/XLSX. Mengembalikan array(daftar_header, baris[]) ; melempar RuntimeException bila gagal. */
-    private function read_table($tmp, $ext)
+    private function read_table($tmp, $ext, $key = '')
     {
         $all = array();
         if (in_array($ext, array('xlsx', 'xls'), TRUE)) {
@@ -553,7 +615,7 @@ class Master extends MY_Controller
                 foreach ($r as $c) { if (trim((string)$c) !== '') { $any = TRUE; break; } }
                 if (!$any) continue;
                 $hdr = array();
-                foreach ($r as $c) { $hdr[] = $this->norm_header($c); }
+                foreach ($r as $c) { $hdr[] = $this->norm_header($c, $key); }
                 continue;
             }
             $row = array('_line' => $n + 1);
@@ -600,19 +662,22 @@ class Master extends MY_Controller
         }
         @set_time_limit(300);
         try {
-            list($hdr, $rows) = $this->read_table($f['tmp_name'], $ext);
+            list($hdr, $rows) = $this->read_table($f['tmp_name'], $ext, $key);
         } catch (\Throwable $ex) {
             $this->flash('danger', e($ex->getMessage()));
             redirect($back);
         }
-        $need = $key === 'students' ? array('nis', 'nama', 'kelas') : array('hari', 'kelas', 'kode_mapel', 'username_guru', 'jam_mulai', 'jam_selesai');
+        $needs = array('students' => array('nis', 'nama', 'kelas'), 'teachers' => array('nama', 'username'), 'parents' => array('nama', 'whatsapp'),
+            'schedules' => array('hari', 'kelas', 'kode_mapel', 'username_guru', 'jam_mulai', 'jam_selesai'));
+        $need = isset($needs[$key]) ? $needs[$key] : array();
         $miss = array_diff($need, $hdr);
         if ($miss) { $this->flash('danger', 'Kolom wajib tidak ditemukan: ' . e(implode(', ', $miss)) . '. Unduh dan gunakan template impor.'); redirect($back); }
         if (!$rows) { $this->flash('warning', 'Tidak ada baris data di bawah judul kolom.'); redirect($back); }
 
         $old = $this->db->db_debug;
         $this->db->db_debug = FALSE;   // galat DB per baris dilaporkan, tidak menghentikan impor
-        $res = $key === 'students' ? $this->import_students($rows) : $this->import_schedules($rows);
+        $fn = 'import_' . $key;
+        $res = $this->$fn($rows);
         $this->db->db_debug = $old;
 
         list($okc, $errs, $skip) = $res;
@@ -630,7 +695,8 @@ class Master extends MY_Controller
         $this->load->model('Qr_model');
         $ok = 0; $err = array(); $now = date('Y-m-d H:i:s');
         $classes = array();   // nama kelas (tanpa spasi, huruf kecil) => id ; kelas tahun ajaran aktif menimpa yang lama
-        $q = $this->db->query('SELECT c.id, c.name FROM classes c LEFT JOIN academic_years y ON y.id=c.academic_year_id ORDER BY IFNULL(y.is_active,0), c.id');
+        $q = $this->db->query('SELECT c.id, c.name FROM classes c LEFT JOIN academic_years y ON y.id=c.academic_year_id WHERE c.school_id=? ORDER BY IFNULL(y.is_active,0), c.id', array($this->sid));
+        $left = school_quota_left();   // NULL = tanpa batas
         if ($q) foreach ($q->result() as $c) { $classes[$this->key_norm($c->name)] = (int)$c->id; }
 
         foreach ($rows as $r) {
@@ -645,9 +711,11 @@ class Master extends MY_Controller
             $nisn = $this->g($r, 'nisn'); if ($nisn === '') $nisn = NULL;
             $active = in_array(strtolower($this->g($r, 'status')), array('nonaktif', 'non aktif', 'tidak aktif', '0'), TRUE) ? 0 : 1;
 
-            $ex = $this->row_one('SELECT id FROM students WHERE nis=? LIMIT 1', array($nis));
+            $ex = $this->row_one('SELECT id, deleted_at FROM students WHERE school_id=? AND nis=? LIMIT 1', array($this->sid, $nis));
+            $adds = (!$ex || $ex->deleted_at !== NULL);   // siswa baru / dipulihkan menambah jumlah siswa terdaftar
+            if ($adds && $left !== NULL && $left < 1) { $err[] = "Baris $ln: kuota siswa paket langganan sudah penuh."; continue; }
             if ($nisn !== NULL) {
-                $this->db->where('nisn', $nisn);
+                $this->db->where(array('school_id' => $this->sid, 'nisn' => $nisn));
                 if ($ex) $this->db->where('id !=', $ex->id);
                 if ($this->db->count_all_results('students') > 0) { $err[] = "Baris $ln: NISN $nisn sudah dipakai siswa lain."; continue; }
             }
@@ -656,11 +724,11 @@ class Master extends MY_Controller
             if ($wa_raw !== '') {
                 $wa = normalize_phone($wa_raw);
                 if (!valid_phone($wa)) { $err[] = "Baris $ln: nomor WhatsApp orang tua \"$wa_raw\" tidak valid."; continue; }
-                $p = $this->row_one('SELECT id FROM parents WHERE whatsapp=? LIMIT 1', array($wa));
+                $p = $this->row_one('SELECT id FROM parents WHERE school_id=? AND whatsapp=? LIMIT 1', array($this->sid, $wa));
                 if ($p) { $pid = $p->id; }
                 else {
                     $pn = $this->g($r, 'nama_ortu') !== '' ? mb_substr($this->g($r, 'nama_ortu'), 0, 120) : mb_substr('Orang Tua ' . $name, 0, 120);
-                    if (!$this->db->insert('parents', array('name' => $pn, 'whatsapp' => $wa, 'created_at' => $now, 'updated_at' => $now))) {
+                    if (!$this->db->insert('parents', array('school_id' => $this->sid, 'name' => $pn, 'whatsapp' => $wa, 'created_at' => $now, 'updated_at' => $now))) {
                         $e2 = $this->db->error(); $err[] = "Baris $ln: gagal menyimpan orang tua (" . $e2['message'] . ').'; continue;
                     }
                     $pid = $this->db->insert_id();
@@ -669,10 +737,10 @@ class Master extends MY_Controller
             $data = array('nisn' => $nisn, 'name' => $name, 'gender' => $g, 'class_id' => $classes[$ck], 'is_active' => $active, 'updated_at' => $now);
             if ($ex) {
                 $data['deleted_at'] = NULL;
-                if (!$this->db->update('students', $data, array('id' => $ex->id))) { $e2 = $this->db->error(); $err[] = "Baris $ln: gagal memperbarui siswa (" . $e2['message'] . ').'; continue; }
+                if (!$this->db->update('students', $data, array('id' => $ex->id, 'school_id' => $this->sid))) { $e2 = $this->db->error(); $err[] = "Baris $ln: gagal memperbarui siswa (" . $e2['message'] . ').'; continue; }
                 $sid = $ex->id; $new = FALSE;
             } else {
-                $data['nis'] = $nis; $data['created_at'] = $now;
+                $data['nis'] = $nis; $data['school_id'] = $this->sid; $data['created_at'] = $now;
                 if (!$this->db->insert('students', $data)) { $e2 = $this->db->error(); $err[] = "Baris $ln: gagal menyimpan siswa (" . $e2['message'] . ').'; continue; }
                 $sid = $this->db->insert_id(); $new = TRUE;
             }
@@ -681,6 +749,112 @@ class Master extends MY_Controller
                 $this->db->insert('student_parents', array('student_id' => $sid, 'parent_id' => $pid, 'is_primary' => 1));
             }
             if ($new || !$this->Qr_model->active_token($sid)) $this->Qr_model->generate($sid, 'Dibuat otomatis (impor)', $this->uid);
+            if ($adds && $left !== NULL) $left--;
+            $ok++;
+        }
+        return array($ok, $err, 0);
+    }
+
+    private function is_inactive($v)
+    {
+        return in_array(strtolower(trim((string)$v)), array('nonaktif', 'non aktif', 'tidak aktif', '0', 'tidak', 'no'), TRUE);
+    }
+
+    private function import_teachers($rows)
+    {
+        $ok = 0; $err = array(); $now = date('Y-m-d H:i:s');
+        $by_code = array(); $by_name = array();
+        foreach ($this->db->query('SELECT id, code, name FROM subjects WHERE school_id=?', array($this->sid))->result() as $s) {
+            $by_code[strtolower($s->code)] = (int)$s->id;
+            $by_name[$this->key_norm($s->name)] = (int)$s->id;
+        }
+        foreach ($rows as $r) {
+            $ln = $r['_line'];
+            $name = mb_substr($this->g($r, 'nama'), 0, 120);
+            $un = $this->g($r, 'username');
+            if ($name === '' || $un === '') { $err[] = "Baris $ln: nama dan username wajib diisi."; continue; }
+            if (!preg_match('/^[A-Za-z0-9_.\-]{3,60}$/', $un)) { $err[] = "Baris $ln: username \"$un\" tidak valid (3-60 karakter: huruf, angka, titik, strip, underscore)."; continue; }
+            $pw = $this->g($r, 'password');
+            if ($pw !== '' && strlen($pw) < 6) { $err[] = "Baris $ln: password minimal 6 karakter."; continue; }
+            $nip = $this->g($r, 'nip'); $nip = $nip === '' ? NULL : mb_substr($nip, 0, 30);
+            $ph = $this->g($r, 'no_hp'); $ph = $ph === '' ? NULL : mb_substr(normalize_phone($ph), 0, 20);
+            $em = $this->g($r, 'email');
+            if ($em !== '' && !filter_var($em, FILTER_VALIDATE_EMAIL)) { $err[] = "Baris $ln: email \"$em\" tidak valid."; continue; }
+            $em = $em === '' ? NULL : mb_substr($em, 0, 120);
+            $active = $this->is_inactive($this->g($r, 'status')) ? 0 : 1;
+
+            $sids = array(); $bad = array();
+            $mraw = $this->g($r, 'mapel') !== '' ? $this->g($r, 'mapel') : $this->g($r, 'kode_mapel');
+            foreach (preg_split('/[;,|\n]+/', $mraw) as $m) {
+                $m = trim($m);
+                if ($m === '') continue;
+                if (isset($by_code[strtolower($m)])) $sids[] = $by_code[strtolower($m)];
+                elseif (isset($by_name[$this->key_norm($m)])) $sids[] = $by_name[$this->key_norm($m)];
+                else $bad[] = $m;
+            }
+            if ($bad) { $err[] = "Baris $ln: mata pelajaran tidak ditemukan di Data Mata Pelajaran: " . implode(', ', $bad) . '.'; continue; }
+
+            $ex = $this->row_one('SELECT t.id, t.user_id FROM teachers t JOIN users u ON u.id=t.user_id WHERE t.school_id=? AND u.username=? LIMIT 1', array($this->sid, $un));
+            if ($ex) {
+                $tid = (int)$ex->id;
+                if (!$this->db->update('teachers', array('name' => $name, 'nip' => $nip, 'phone' => $ph, 'email' => $em, 'is_active' => $active, 'updated_at' => $now), array('id' => $tid, 'school_id' => $this->sid))) {
+                    $e2 = $this->db->error(); $err[] = "Baris $ln: gagal memperbarui guru (" . $e2['message'] . ').'; continue;
+                }
+                $u = array('name' => $name, 'is_active' => $active, 'updated_at' => $now);
+                if ($pw !== '') $u['password'] = password_hash($pw, PASSWORD_DEFAULT);
+                $this->db->update('users', $u, array('id' => $ex->user_id, 'school_id' => $this->sid));
+            } else {
+                if (username_taken($un)) { $err[] = "Baris $ln: username \"$un\" sudah digunakan."; continue; }
+                if ($pw === '') { $err[] = "Baris $ln: password wajib diisi (min. 6 karakter) untuk guru baru."; continue; }
+                if (!$this->db->insert('users', array('school_id' => $this->sid, 'role_id' => 2, 'name' => $name, 'username' => $un, 'password' => password_hash($pw, PASSWORD_DEFAULT),
+                    'is_active' => $active, 'created_at' => $now, 'updated_at' => $now))) {
+                    $e2 = $this->db->error(); $err[] = "Baris $ln: gagal membuat akun (" . $e2['message'] . ').'; continue;
+                }
+                $uid = (int)$this->db->insert_id();
+                if (!$this->db->insert('teachers', array('school_id' => $this->sid, 'user_id' => $uid, 'name' => $name, 'nip' => $nip, 'phone' => $ph, 'email' => $em,
+                    'is_active' => $active, 'created_at' => $now, 'updated_at' => $now))) {
+                    $e2 = $this->db->error(); $this->db->delete('users', array('id' => $uid)); $err[] = "Baris $ln: gagal menyimpan guru (" . $e2['message'] . ').'; continue;
+                }
+                $tid = (int)$this->db->insert_id();
+            }
+            if ($mraw !== '') {   // kolom mapel diisi: ganti daftar mapel yang diampu
+                $this->db->delete('teacher_subjects', array('teacher_id' => $tid));
+                foreach (array_unique($sids) as $sid) { $this->db->insert('teacher_subjects', array('teacher_id' => $tid, 'subject_id' => $sid)); }
+            }
+            $ok++;
+        }
+        return array($ok, $err, 0);
+    }
+
+    private function import_parents($rows)
+    {
+        $ok = 0; $err = array(); $now = date('Y-m-d H:i:s');
+        foreach ($rows as $r) {
+            $ln = $r['_line'];
+            $wa_raw = $this->g($r, 'whatsapp');
+            $wa = normalize_phone($wa_raw);
+            if (!valid_phone($wa)) { $err[] = "Baris $ln: nomor WhatsApp \"$wa_raw\" tidak valid."; continue; }
+            $name = mb_substr($this->g($r, 'nama'), 0, 120);
+            if ($name === '') { $err[] = "Baris $ln: nama kontak wajib diisi."; continue; }
+            $rel = $this->g($r, 'hubungan');
+            if ($rel !== '') {
+                $map = array('ayah' => 'Ayah', 'ibu' => 'Ibu', 'wali' => 'Wali');
+                if (!isset($map[strtolower($rel)])) { $err[] = "Baris $ln: hubungan harus Ayah, Ibu, atau Wali."; continue; }
+                $rel = $map[strtolower($rel)];
+            }
+            $d = array('name' => $name, 'updated_at' => $now);
+            foreach (array('father_name' => 'ayah', 'mother_name' => 'ibu', 'guardian_name' => 'wali') as $col => $h) {
+                if ($this->g($r, $h) !== '') $d[$col] = mb_substr($this->g($r, $h), 0, 120);
+            }
+            if ($rel !== '') $d['relation'] = $rel;
+            $ex = $this->row_one('SELECT id FROM parents WHERE school_id=? AND whatsapp=? LIMIT 1', array($this->sid, $wa));
+            if ($ex) {
+                $good = $this->db->update('parents', $d, array('id' => $ex->id, 'school_id' => $this->sid));
+            } else {
+                $d['school_id'] = $this->sid; $d['whatsapp'] = $wa; $d['created_at'] = $now;
+                $good = $this->db->insert('parents', $d);
+            }
+            if (!$good) { $e2 = $this->db->error(); $err[] = "Baris $ln: gagal menyimpan (" . $e2['message'] . ').'; continue; }
             $ok++;
         }
         return array($ok, $err, 0);
@@ -702,29 +876,29 @@ class Master extends MY_Controller
 
             $kn = $this->g($r, 'kelas');
             if (!array_key_exists($kn, $cc)) {
-                $cc[$kn] = $this->row_one('SELECT id FROM classes WHERE REPLACE(name, " ", "")=REPLACE(?, " ", "") ORDER BY (academic_year_id <=> ?) DESC, id DESC LIMIT 1', array($kn, $sem->academic_year_id));
+                $cc[$kn] = $this->row_one('SELECT id FROM classes WHERE school_id=? AND REPLACE(name, " ", "")=REPLACE(?, " ", "") ORDER BY (academic_year_id <=> ?) DESC, id DESC LIMIT 1', array($this->sid, $kn, $sem->academic_year_id));
             }
             $c = $cc[$kn];
             if (!$c) { $err[] = "Baris $ln: kelas \"$kn\" tidak ditemukan."; continue; }
 
             $kd = $this->g($r, 'kode_mapel');
-            if (!array_key_exists($kd, $sc)) $sc[$kd] = $this->row_one('SELECT id FROM subjects WHERE code=? LIMIT 1', array($kd));
+            if (!array_key_exists($kd, $sc)) $sc[$kd] = $this->row_one('SELECT id FROM subjects WHERE school_id=? AND code=? LIMIT 1', array($this->sid, $kd));
             $s = $sc[$kd];
             if (!$s) { $err[] = "Baris $ln: kode mapel \"$kd\" tidak ditemukan."; continue; }
 
             $un = $this->g($r, 'username_guru');
-            if (!array_key_exists($un, $tc)) $tc[$un] = $this->row_one('SELECT t.id FROM teachers t JOIN users u ON u.id=t.user_id WHERE u.username=? LIMIT 1', array($un));
+            if (!array_key_exists($un, $tc)) $tc[$un] = $this->row_one('SELECT t.id FROM teachers t JOIN users u ON u.id=t.user_id WHERE t.school_id=? AND u.username=? LIMIT 1', array($this->sid, $un));
             $t = $tc[$un];
             if (!$t) { $err[] = "Baris $ln: username guru \"$un\" tidak ditemukan."; continue; }
 
             $st = $this->parse_time($this->g($r, 'jam_mulai')); $en = $this->parse_time($this->g($r, 'jam_selesai'));
             if ($st === NULL || $en === NULL) { $err[] = "Baris $ln: format jam harus HH:MM (mis. 07:00)."; continue; }
 
-            $d = array('semester_id' => $sem->id, 'day' => $day, 'class_id' => $c->id, 'subject_id' => $s->id, 'teacher_id' => $t->id,
+            $d = array('school_id' => $this->sid, 'semester_id' => $sem->id, 'day' => $day, 'class_id' => $c->id, 'subject_id' => $s->id, 'teacher_id' => $t->id,
                 'start_time' => $st, 'end_time' => $en, 'room' => $this->g($r, 'ruang') !== '' ? mb_substr($this->g($r, 'ruang'), 0, 30) : NULL,
                 'created_at' => $now, 'updated_at' => $now);
-            $dup = $this->row_one('SELECT id FROM schedules WHERE semester_id=? AND day=? AND class_id=? AND subject_id=? AND teacher_id=? AND start_time=? AND end_time=? LIMIT 1',
-                array($sem->id, $day, $c->id, $s->id, $t->id, $st, $en));
+            $dup = $this->row_one('SELECT id FROM schedules WHERE school_id=? AND semester_id=? AND day=? AND class_id=? AND subject_id=? AND teacher_id=? AND start_time=? AND end_time=? LIMIT 1',
+                array($this->sid, $sem->id, $day, $c->id, $s->id, $t->id, $st, $en));
             if ($dup) { $skip++; continue; }
             $cks = $this->schedule_check($d, 0);
             if ($cks) { $err[] = "Baris $ln: " . $cks[0]; continue; }

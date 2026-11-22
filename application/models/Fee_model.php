@@ -5,7 +5,7 @@ class Fee_model extends CI_Model
 {
     public function recompute($invoice_id)
     {
-        $inv = $this->db->get_where('invoices', array('id' => (int)$invoice_id))->row();
+        $inv = $this->db->get_where('invoices', array('id' => (int)$invoice_id, 'school_id' => school_id()))->row();
         if (!$inv || $inv->status === 'batal') return;
         $paid = (int)$this->db->query("SELECT IFNULL(SUM(amount),0) s FROM payments WHERE invoice_id=? AND status='terverifikasi'", array($inv->id))->row()->s;
         $status = $paid >= (int)$inv->amount ? 'lunas' : ($paid > 0 ? 'sebagian' : 'belum');
@@ -41,9 +41,9 @@ class Fee_model extends CI_Model
     /** Verifikasi/tolak pembayaran 'menunggu'. Mengembalikan pesan error atau ''. */
     public function review($payment_id, $approve, $uid, $note = '')
     {
-        $p = $this->db->get_where('payments', array('id' => (int)$payment_id))->row();
+        $p = $this->db->query('SELECT p.* FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE p.id=? AND i.school_id=?', array((int)$payment_id, school_id()))->row();
         if (!$p) return 'Pembayaran tidak ditemukan.';
-        $inv = $this->db->get_where('invoices', array('id' => $p->invoice_id))->row();
+        $inv = $this->db->get_where('invoices', array('id' => $p->invoice_id, 'school_id' => school_id()))->row();
         $now = date('Y-m-d H:i:s');
         if ($approve) {
             if ($inv->status === 'batal') return 'Tagihan sudah dibatalkan.';

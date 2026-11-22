@@ -9,11 +9,11 @@ class Attendance_model extends CI_Model
 
     public function stats($session_id, $class_id = NULL)
     {
-        $ses = $this->db->get_where('attendance_sessions', array('id' => $session_id))->row();
+        $ses = $this->db->get_where('attendance_sessions', array('id' => $session_id, 'school_id' => school_id()))->row();
         if (!$ses) return array('total' => 0, 'present' => 0, 'absent' => 0, 'pct' => 0);
         $total = $ses->total_students;
         if ($ses->status === 'open') {
-            $total = (int)$this->db->where(array('class_id' => $ses->class_id, 'is_active' => 1, 'deleted_at' => NULL))->count_all_results('students');
+            $total = (int)$this->db->where(array('school_id' => school_id(), 'class_id' => $ses->class_id, 'is_active' => 1, 'deleted_at' => NULL))->count_all_results('students');
         }
         $present = (int)$this->db->where('session_id', $session_id)->where_in('status', array('hadir', 'terlambat'))->count_all_results('attendance_records');
         $late = (int)$this->db->where(array('session_id' => $session_id, 'status' => 'terlambat'))->count_all_results('attendance_records');
@@ -23,7 +23,7 @@ class Attendance_model extends CI_Model
 
     private function log($session, $uid, $code, $result, $msg)
     {
-        $this->db->insert('scan_logs', array('session_id' => $session ? $session->id : NULL, 'user_id' => $uid,
+        $this->db->insert('scan_logs', array('school_id' => school_id(), 'session_id' => $session ? $session->id : NULL, 'user_id' => $uid,
             'code_prefix' => substr(preg_replace('/[^A-Za-z0-9:]/', '', (string)$code), 0, 12), 'result' => $result,
             'message' => substr($msg, 0, 255), 'created_at' => date('Y-m-d H:i:s')));
     }
@@ -43,7 +43,8 @@ class Attendance_model extends CI_Model
             $this->log($session, $uid, $raw, 'invalid', $msgInvalid);
             return $this->fail('invalid', $msgInvalid);
         }
-        $qr = $this->db->get_where('student_qr_codes', array('token' => $code))->row();
+        // QR hanya berlaku untuk siswa sekolah ini; token sekolah lain diperlakukan sebagai tidak terdaftar.
+        $qr = $this->db->query('SELECT q.* FROM student_qr_codes q JOIN students s ON s.id=q.student_id WHERE q.token=? AND s.school_id=?', array($code, school_id()))->row();
         if (!$qr) {
             $this->log($session, $uid, $raw, 'invalid', $msgInvalid);
             return $this->fail('invalid', $msgInvalid);
@@ -52,7 +53,7 @@ class Attendance_model extends CI_Model
             $this->log($session, $uid, $raw, 'invalid', 'QR lama sudah dinonaktifkan');
             return $this->fail('invalid', $msgInvalid, array('detail' => 'QR ini sudah diganti/dinonaktifkan. Gunakan kartu terbaru.'));
         }
-        $st = $this->db->query('SELECT s.*, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.id=?', array($qr->student_id))->row();
+        $st = $this->db->query('SELECT s.*, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.id=? AND s.school_id=?', array($qr->student_id, school_id()))->row();
         if (!$st || $st->deleted_at || !$st->is_active) {
             $this->log($session, $uid, $raw, 'inactive', 'Siswa tidak aktif');
             return $this->fail('inactive', 'SISWA TIDAK AKTIF.');
@@ -121,14 +122,14 @@ class Attendance_model extends CI_Model
     /** Tutup sesi dan buat baris 'belum' untuk siswa yang tidak scan. */
     public function close_session($session_id)
     {
-        $ses = $this->db->get_where('attendance_sessions', array('id' => $session_id))->row();
+        $ses = $this->db->get_where('attendance_sessions', array('id' => $session_id, 'school_id' => school_id()))->row();
         if (!$ses) return FALSE;
         $now = date('Y-m-d H:i:s');
         $this->db->query("INSERT INTO attendance_records (session_id, student_id, status, source, created_at, updated_at)
             SELECT ?, s.id, COALESCE((SELECT lr.leave_type FROM leave_requests lr WHERE lr.student_id=s.id AND lr.status='disetujui' AND ? BETWEEN lr.date_from AND lr.date_to ORDER BY lr.id DESC LIMIT 1), 'belum'), 'system', ?, ? FROM students s
-            WHERE s.class_id=? AND s.is_active=1 AND s.deleted_at IS NULL
+            WHERE s.school_id=? AND s.class_id=? AND s.is_active=1 AND s.deleted_at IS NULL
               AND NOT EXISTS (SELECT 1 FROM attendance_records r WHERE r.session_id=? AND r.student_id=s.id)",
-            array($ses->id, $ses->session_date, $now, $now, $ses->class_id, $ses->id));
+            array($ses->id, $ses->session_date, $now, $now, $ses->school_id, $ses->class_id, $ses->id));
         $total = (int)$this->db->where('session_id', $ses->id)->count_all_results('attendance_records');
         $this->db->update('attendance_sessions', array('status' => 'closed', 'ended_at' => $now, 'total_students' => $total, 'updated_at' => $now), array('id' => $ses->id));
         return TRUE;
@@ -137,7 +138,7 @@ class Attendance_model extends CI_Model
     /** Tutup sesi 'open' dari hari-hari sebelumnya. */
     public function close_stale()
     {
-        $rows = $this->db->query("SELECT id FROM attendance_sessions WHERE status='open' AND session_date < ?", array(date('Y-m-d')))->result();
+        $rows = $this->db->query("SELECT id FROM attendance_sessions WHERE school_id=? AND status='open' AND session_date < ?", array(school_id(), date('Y-m-d')))->result();
         foreach ($rows as $r) { $this->close_session($r->id); }
         return count($rows);
     }

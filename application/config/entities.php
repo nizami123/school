@@ -33,7 +33,7 @@ $config['entities'] = array(
     'from' => 'teachers t', 'joins' => array('LEFT JOIN users u ON u.id=t.user_id'), 'where' => '', 'order' => 't.name',
     'columns' => array(array('name', 'Nama'), array('nip', 'NIP'), array('username', 'Username'), array('phone', 'No. HP'),
                        array('email', 'Email'), array('subject_names', 'Mata Pelajaran'), array('is_active', 'Status', 'active')),
-    'toggle' => TRUE,
+    'toggle' => TRUE, 'import' => TRUE,
     'fields' => array(
         array('name' => 'name', 'label' => 'Nama Guru', 'type' => 'text', 'required' => 1),
         array('name' => 'nip', 'label' => 'NIP (opsional)', 'type' => 'text', 'nullable' => 1),
@@ -78,6 +78,7 @@ $config['entities'] = array(
     'from' => 'parents p', 'joins' => array(), 'where' => '', 'order' => 'p.name',
     'columns' => array(array('name', 'Nama Kontak'), array('father_name', 'Ayah'), array('mother_name', 'Ibu'), array('guardian_name', 'Wali'),
                        array('relation', 'Hubungan'), array('whatsapp', 'WhatsApp'), array('total_children', 'Jml Anak')),
+    'import' => TRUE,
     'fields' => array(
         array('name' => 'name', 'label' => 'Nama Kontak Utama (penerima pesan)', 'type' => 'text', 'required' => 1),
         array('name' => 'father_name', 'label' => 'Nama Ayah', 'type' => 'text', 'nullable' => 1),

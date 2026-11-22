@@ -18,7 +18,7 @@ class Settings extends MY_Controller
     {
         $this->load->library('whatsapp');
         $this->render('settings/index', array('title' => 'Pengaturan Sekolah', 'has_token' => $this->whatsapp->token() !== '',
-            'cron_key' => setting('cron_key', ''), 'defaults' => $this->Wa_model->templates()));
+            'defaults' => $this->Wa_model->templates()));
     }
 
     public function save()
@@ -62,7 +62,7 @@ class Settings extends MY_Controller
         $to = normalize_phone($this->input->post('test_phone'));
         if (!valid_phone($to)) { $this->flash('danger', 'Nomor uji tidak valid.'); redirect('settings'); }
         if (!$this->whatsapp->configured()) { $this->flash('danger', 'Aktifkan integrasi dan isi Token Fonnte terlebih dahulu, lalu simpan.'); redirect('settings'); }
-        $r = $this->whatsapp->send_text($to, 'Pesan uji dari ' . setting('school_name', 'QR School Attendance') . '. Jika Anda menerima ini, integrasi WhatsApp (Fonnte) berfungsi.');
+        $r = $this->whatsapp->send_text($to, 'Pesan uji dari ' . setting('school_name', 'sekolah') . '. Jika Anda menerima ini, integrasi WhatsApp (Fonnte) berfungsi.');
         audit('uji_wa', $to . ' => ' . ($r['ok'] ? 'ok' : 'gagal'));
         $this->flash($r['ok'] ? 'success' : 'danger', $r['ok'] ? 'Permintaan diterima Fonnte' . ($r['id'] ? ' (id ' . e($r['id']) . ')' : '') . '. Cek apakah pesan masuk di nomor tujuan. Jika tidak masuk, pastikan perangkat di dashboard Fonnte berstatus Connected.' : 'Gagal: ' . e($r['raw']));
         redirect('settings');
@@ -70,7 +70,7 @@ class Settings extends MY_Controller
 
     public function audit()
     {
-        $rows = $this->db->query('SELECT a.*, u.name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 500')->result();
+        $rows = $this->db->query('SELECT a.*, u.name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id WHERE a.school_id=? ORDER BY a.id DESC LIMIT 500', array($this->sid))->result();
         $this->render('settings/audit', array('title' => 'Audit Log', 'rows' => $rows));
     }
 }

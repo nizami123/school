@@ -12,11 +12,11 @@ class Rekap extends MY_Controller
     private function options()
     {
         $o = array();
-        $o['classes'] = $this->db->order_by('name')->get('classes')->result();
-        $o['teachers'] = $this->db->order_by('name')->get('teachers')->result();
-        $o['subjects'] = $this->db->order_by('name')->get('subjects')->result();
-        $o['semesters'] = $this->db->query("SELECT s.id, CONCAT(y.name,' ',s.name) label, s.start_date, s.end_date FROM semesters s JOIN academic_years y ON y.id=s.academic_year_id ORDER BY y.start_date DESC, s.start_date DESC")->result();
-        $o['years'] = $this->db->order_by('start_date', 'DESC')->get('academic_years')->result();
+        $o['classes'] = $this->db->where('school_id', $this->sid)->order_by('name')->get('classes')->result();
+        $o['teachers'] = $this->db->where('school_id', $this->sid)->order_by('name')->get('teachers')->result();
+        $o['subjects'] = $this->db->where('school_id', $this->sid)->order_by('name')->get('subjects')->result();
+        $o['semesters'] = $this->db->query("SELECT s.id, CONCAT(y.name,' ',s.name) label, s.start_date, s.end_date FROM semesters s JOIN academic_years y ON y.id=s.academic_year_id WHERE s.school_id=? ORDER BY y.start_date DESC, s.start_date DESC", array($this->sid))->result();
+        $o['years'] = $this->db->where('school_id', $this->sid)->order_by('start_date', 'DESC')->get('academic_years')->result();
         return $o;
     }
 
@@ -32,7 +32,7 @@ class Rekap extends MY_Controller
     /** Rekap siswa per mata pelajaran (matriks tanggal x mapel). */
     public function siswa($sid = 0)
     {
-        $st = $this->db->query('SELECT s.*, c.name class_name FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.id=?', array((int)$sid))->row();
+        $st = $this->db->query('SELECT s.*, c.name class_name FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.id=? AND s.school_id=?', array((int)$sid, $this->sid))->row();
         if (!$st) show_404();
         $f = $this->Report_model->filters($this->input->get());
         $this->render('rekap/siswa', array('title' => 'Rekap ' . $st->name, 'st' => $st, 'f' => $f, 'recs' => $this->Report_model->student_matrix($st->id, $f)));
@@ -55,6 +55,6 @@ class Rekap extends MY_Controller
             export_table('rekap-bulanan-' . $ym, array('No', 'NIS', 'Nama', 'Kelas', 'Hadir', 'Terlambat', 'Sakit', 'Izin', 'Alpa', 'Belum Dikonfirmasi', 'Total Sesi', '% Hadir'), $out, $fmt, array('sheet' => 'Rekap ' . $ym, 'text_cols' => array(1)));
         }
         $this->render('rekap/bulanan', array('title' => 'Rekap Bulanan', 'ym' => $ym, 'class_id' => $cid, 'rows' => $rows,
-            'classes' => $this->db->order_by('name')->get('classes')->result()));
+            'classes' => $this->db->where('school_id', $this->sid)->order_by('name')->get('classes')->result()));
     }
 }

@@ -15,11 +15,11 @@ class Report extends MY_Controller
         $type = $this->input->get('type');
         $f = $this->Report_model->filters($this->input->get());
         $o = array();
-        $o['classes'] = $this->db->order_by('name')->get('classes')->result();
-        $o['teachers'] = $this->db->order_by('name')->get('teachers')->result();
-        $o['subjects'] = $this->db->order_by('name')->get('subjects')->result();
-        $o['semesters'] = $this->db->query("SELECT s.id, CONCAT(y.name,' ',s.name) label FROM semesters s JOIN academic_years y ON y.id=s.academic_year_id ORDER BY y.start_date DESC, s.start_date DESC")->result();
-        $o['years'] = $this->db->order_by('start_date', 'DESC')->get('academic_years')->result();
+        $o['classes'] = $this->db->where('school_id', $this->sid)->order_by('name')->get('classes')->result();
+        $o['teachers'] = $this->db->where('school_id', $this->sid)->order_by('name')->get('teachers')->result();
+        $o['subjects'] = $this->db->where('school_id', $this->sid)->order_by('name')->get('subjects')->result();
+        $o['semesters'] = $this->db->query("SELECT s.id, CONCAT(y.name,' ',s.name) label FROM semesters s JOIN academic_years y ON y.id=s.academic_year_id WHERE s.school_id=? ORDER BY y.start_date DESC, s.start_date DESC", array($this->sid))->result();
+        $o['years'] = $this->db->where('school_id', $this->sid)->order_by('start_date', 'DESC')->get('academic_years')->result();
         $o['has_pdf'] = class_exists('Dompdf\Dompdf');
         $o['has_xlsx'] = class_exists('PhpOffice\PhpSpreadsheet\Spreadsheet');
         $this->render('report/index', array_merge($o, array('title' => 'Laporan', 'type' => $type, 'f' => $f)));

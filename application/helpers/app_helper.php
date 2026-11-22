@@ -1,26 +1,135 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed');
 
+if (!function_exists('school_id')) {
+    /** ID sekolah aktif untuk request ini (0 = tidak ada / super admin). Dipakai semua query agar data antar-sekolah tidak tercampur. */
+    function school_id($set = NULL)
+    {
+        static $id = 0;
+        if ($set !== NULL) $id = (int)$set;
+        return $id;
+    }
+}
+if (!function_exists('school_row')) {
+    /** Baris tabel schools untuk sekolah aktif (cache per request). */
+    function school_row($reset = FALSE)
+    {
+        static $cache = array();
+        $sid = school_id();
+        if ($reset) unset($cache[$sid]);
+        if (!$sid) return NULL;
+        if (!array_key_exists($sid, $cache)) {
+            $CI =& get_instance();
+            $cache[$sid] = $CI->db->get_where('schools', array('id' => $sid))->row();
+        }
+        return $cache[$sid];
+    }
+}
+if (!function_exists('school_setting_cols')) {
+    /** Pengaturan identitas sekolah disimpan di tabel schools (satu sumber untuk Super Admin & Admin Sekolah). */
+    function school_setting_cols()
+    {
+        return array('school_name' => 'name', 'school_address' => 'address', 'school_phone' => 'phone', 'school_email' => 'email', 'school_logo' => 'logo');
+    }
+}
 if (!function_exists('setting')) {
     function setting($key, $default = '', $reset = FALSE)
     {
-        static $cache = NULL;
-        $CI =& get_instance();
-        if ($cache === NULL || $reset) {
-            $cache = array();
-            foreach ($CI->db->get('school_settings')->result() as $r) {
-                $cache[$r->skey] = $r->svalue;
+        static $cache = array();
+        $sid = school_id();
+        if ($reset) { unset($cache[$sid]); }
+        $cols = school_setting_cols();
+        if (isset($cols[$key])) {
+            $r = school_row();
+            $v = $r ? $r->{$cols[$key]} : NULL;
+            return ($v !== NULL && $v !== '') ? $v : $default;
+        }
+        if (!$sid) return $default;
+        if (!isset($cache[$sid])) {
+            $CI =& get_instance();
+            $cache[$sid] = array();
+            foreach ($CI->db->get_where('school_settings', array('school_id' => $sid))->result() as $r) {
+                $cache[$sid][$r->skey] = $r->svalue;
             }
         }
-        return (array_key_exists($key, $cache) && $cache[$key] !== NULL && $cache[$key] !== '') ? $cache[$key] : $default;
+        return (array_key_exists($key, $cache[$sid]) && $cache[$sid][$key] !== NULL && $cache[$sid][$key] !== '') ? $cache[$sid][$key] : $default;
     }
 }
 if (!function_exists('setting_set')) {
     function setting_set($key, $value)
     {
         $CI =& get_instance();
-        $CI->db->query('INSERT INTO school_settings (skey, svalue, updated_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue), updated_at=VALUES(updated_at)',
-            array($key, $value, date('Y-m-d H:i:s')));
+        $sid = school_id();
+        if (!$sid) return;
+        $cols = school_setting_cols();
+        if (isset($cols[$key])) {
+            if ($key === 'school_name' && trim((string)$value) === '') return;   // nama sekolah wajib ada
+            $CI->db->update('schools', array($cols[$key] => ($value === '' ? NULL : $value), 'updated_at' => date('Y-m-d H:i:s')), array('id' => $sid));
+            school_row(TRUE);
+            return;
+        }
+        $CI->db->query('INSERT INTO school_settings (school_id, skey, svalue, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue), updated_at=VALUES(updated_at)',
+            array($sid, $key, $value, date('Y-m-d H:i:s')));
         setting('', '', TRUE);
+    }
+}
+if (!function_exists('app_setting')) {
+    /** Pengaturan global platform (mis. kunci cron). */
+    function app_setting($key, $default = '')
+    {
+        $CI =& get_instance();
+        $r = $CI->db->get_where('app_settings', array('skey' => $key))->row();
+        return ($r && $r->svalue !== NULL && $r->svalue !== '') ? $r->svalue : $default;
+    }
+}
+if (!function_exists('username_taken')) {
+    /** Username harus unik secara global (satu form login untuk semua sekolah & Super Admin). */
+    function username_taken($username, $ignore_user_id = 0)
+    {
+        $CI =& get_instance();
+        if ($CI->db->where('username', $username)->count_all_results('super_admins') > 0) return TRUE;
+        $CI->db->where('username', $username);
+        if ($ignore_user_id) $CI->db->where('id !=', (int)$ignore_user_id);
+        return $CI->db->count_all_results('users') > 0;
+    }
+}
+if (!function_exists('school_student_count')) {
+    /** Jumlah siswa terdaftar (belum dihapus) milik sekolah aktif; dasar kuota langganan. */
+    function school_student_count()
+    {
+        $CI =& get_instance();
+        return (int)$CI->db->where(array('school_id' => school_id(), 'deleted_at' => NULL))->count_all_results('students');
+    }
+}
+if (!function_exists('school_quota_left')) {
+    /** Sisa kuota siswa; NULL bila tanpa batas (kuota 0). */
+    function school_quota_left()
+    {
+        $r = school_row();
+        if (!$r || !(int)$r->student_quota) return NULL;
+        return max(0, (int)$r->student_quota - school_student_count());
+    }
+}
+if (!function_exists('school_seed_defaults')) {
+    /** Data awal sekolah baru: pengaturan standar, tahun ajaran & semester berjalan. */
+    function school_seed_defaults($sid)
+    {
+        $CI =& get_instance();
+        $now = date('Y-m-d H:i:s');
+        $y = (int)date('Y');
+        if ((int)date('n') >= 7) { $yn = $y . '/' . ($y + 1); $ys = $y . '-07-01'; $ye = ($y + 1) . '-06-30'; $sn = 'Ganjil'; $ss = $y . '-07-01'; $se = $y . '-12-31'; }
+        else { $yn = ($y - 1) . '/' . $y; $ys = ($y - 1) . '-07-01'; $ye = $y . '-06-30'; $sn = 'Genap'; $ss = $y . '-01-01'; $se = $y . '-06-30'; }
+        $CI->db->insert('academic_years', array('school_id' => $sid, 'name' => $yn, 'start_date' => $ys, 'end_date' => $ye, 'is_active' => 1, 'created_at' => $now, 'updated_at' => $now));
+        $yid = $CI->db->insert_id();
+        $CI->db->insert('semesters', array('school_id' => $sid, 'academic_year_id' => $yid, 'name' => $sn, 'start_date' => $ss, 'end_date' => $se, 'is_active' => 1, 'created_at' => $now, 'updated_at' => $now));
+        $CI->config->load('wa_defaults', TRUE);
+        $settings = array_merge(array(
+            'effective_days' => '1,2,3,4,5', 'start_time' => '07:00', 'break_start' => '', 'break_end' => '', 'late_minutes' => '15',
+            'wa_enabled' => '0', 'wa_policy' => 'each', 'wa_delay' => '2', 'wa_token' => '',
+            'wa_notify_hadir' => '1', 'wa_notify_terlambat' => '1', 'wa_notify_absent' => '1', 'wa_notify_izin' => '1', 'wa_notify_sakit' => '1', 'wa_notify_daily' => '0',
+            'card_note' => 'Kartu ini milik sekolah. Jika ditemukan harap dikembalikan.'), $CI->config->item('wa_templates', 'wa_defaults'));
+        foreach ($settings as $k => $v) {
+            $CI->db->query('INSERT INTO school_settings (school_id, skey, svalue, updated_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue)', array($sid, $k, $v, $now));
+        }
     }
 }
 if (!function_exists('e')) {
@@ -69,8 +178,14 @@ if (!function_exists('audit')) {
     function audit($action, $detail = '')
     {
         $CI =& get_instance();
+        $role = $CI->session ? (string)$CI->session->userdata('role') : '';
+        $uid = $CI->session ? ((int)$CI->session->userdata('uid') ?: NULL) : NULL;
+        if ($role === 'superadmin') {   // id super admin bukan id tabel users
+            $detail = '[super admin ' . $CI->session->userdata('name') . '] ' . $detail;
+            $uid = NULL;
+        }
         $CI->db->insert('audit_logs', array(
-            'user_id' => $CI->session ? ((int)$CI->session->userdata('uid') ?: NULL) : NULL,
+            'school_id' => school_id() ?: NULL, 'user_id' => $uid,
             'action' => $action, 'detail' => $detail,
             'ip' => $CI->input->ip_address(), 'created_at' => date('Y-m-d H:i:s')));
     }
@@ -238,15 +353,15 @@ if (!function_exists('apply_leave_to_sessions')) {
     function apply_leave_to_sessions($leave)
     {
         $CI =& get_instance();
-        $st = $CI->db->get_where('students', array('id' => $leave->student_id))->row();
+        $st = $CI->db->get_where('students', array('id' => $leave->student_id, 'school_id' => school_id()))->row();
         if (!$st || !$st->class_id) return 0;
         $now = date('Y-m-d H:i:s');
         $note = ($leave->leave_type === 'sakit' ? 'Sakit' : 'Izin') . ' (pengajuan orang tua #' . $leave->id . ')';
         $CI->db->query("INSERT INTO attendance_records (session_id, student_id, status, source, note, created_at, updated_at)
-            SELECT ses.id, ?, ?, 'manual', ?, ?, ? FROM attendance_sessions ses WHERE ses.class_id=? AND ses.session_date BETWEEN ? AND ?
+            SELECT ses.id, ?, ?, 'manual', ?, ?, ? FROM attendance_sessions ses WHERE ses.school_id=? AND ses.class_id=? AND ses.session_date BETWEEN ? AND ?
             ON DUPLICATE KEY UPDATE note=IF(attendance_records.status IN ('hadir','terlambat'), attendance_records.note, VALUES(note)),
               status=IF(attendance_records.status IN ('hadir','terlambat'), attendance_records.status, VALUES(status)), updated_at=VALUES(updated_at)",
-            array($st->id, $leave->leave_type, $note, $now, $now, $st->class_id, $leave->date_from, $leave->date_to));
+            array($st->id, $leave->leave_type, $note, $now, $now, $st->school_id, $st->class_id, $leave->date_from, $leave->date_to));
         return $CI->db->affected_rows();
     }
 }
