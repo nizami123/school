@@ -11,6 +11,8 @@
     <?php if ($f['type'] === 'select'): $o = is_array($f['options']) ? $f['options'] : (isset($opts[$n]) ? $opts[$n] : array()); ?>
       <select class="form-select" name="<?= $n ?>" id="f_<?= $n ?>" <?= $req ?>><option value="">— pilih —</option>
       <?php foreach ($o as $k => $l): ?><option value="<?= e($k) ?>" <?= (string)$val === (string)$k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select>
+    <?php elseif ($f['type'] === 'textarea'): ?>
+      <textarea class="form-control" name="<?= $n ?>" id="f_<?= $n ?>" rows="5" <?= $req ?>><?= e($val) ?></textarea>
     <?php elseif ($f['type'] === 'multiselect'): $sel = is_array($val) ? $val : array(); ?>
       <select class="form-select" name="<?= $n ?>[]" id="f_<?= $n ?>" multiple size="6"><?php foreach ($opts[$n] as $k => $l): ?><option value="<?= e($k) ?>" <?= in_array($k, $sel) ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select>
       <div class="form-text">Tahan Ctrl/Cmd untuk memilih beberapa.</div>

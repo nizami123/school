@@ -125,10 +125,10 @@ class Attendance_model extends CI_Model
         if (!$ses) return FALSE;
         $now = date('Y-m-d H:i:s');
         $this->db->query("INSERT INTO attendance_records (session_id, student_id, status, source, created_at, updated_at)
-            SELECT ?, s.id, 'belum', 'system', ?, ? FROM students s
+            SELECT ?, s.id, COALESCE((SELECT lr.leave_type FROM leave_requests lr WHERE lr.student_id=s.id AND lr.status='disetujui' AND ? BETWEEN lr.date_from AND lr.date_to ORDER BY lr.id DESC LIMIT 1), 'belum'), 'system', ?, ? FROM students s
             WHERE s.class_id=? AND s.is_active=1 AND s.deleted_at IS NULL
               AND NOT EXISTS (SELECT 1 FROM attendance_records r WHERE r.session_id=? AND r.student_id=s.id)",
-            array($ses->id, $now, $now, $ses->class_id, $ses->id));
+            array($ses->id, $ses->session_date, $now, $now, $ses->class_id, $ses->id));
         $total = (int)$this->db->where('session_id', $ses->id)->count_all_results('attendance_records');
         $this->db->update('attendance_sessions', array('status' => 'closed', 'ended_at' => $now, 'total_students' => $total, 'updated_at' => $now), array('id' => $ses->id));
         return TRUE;

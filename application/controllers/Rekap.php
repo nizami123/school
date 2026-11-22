@@ -37,4 +37,24 @@ class Rekap extends MY_Controller
         $f = $this->Report_model->filters($this->input->get());
         $this->render('rekap/siswa', array('title' => 'Rekap ' . $st->name, 'st' => $st, 'f' => $f, 'recs' => $this->Report_model->student_matrix($st->id, $f)));
     }
+
+    /** Rekap bulanan otomatis (dihitung langsung dari data absensi; tidak perlu proses manual). */
+    public function bulanan()
+    {
+        $ym = (string)$this->input->get('bulan');
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $ym)) $ym = date('Y-m');
+        $cid = (int)$this->input->get('class_id');
+        $rows = $this->Report_model->monthly($ym, $cid);
+        $fmt = $this->input->get('format');
+        if (in_array($fmt, array('csv', 'xlsx'), TRUE)) {
+            $out = array();
+            foreach ($rows as $i => $r) {
+                $out[] = array($i + 1, (string)$r->nis, $r->name, (string)$r->class_name, (int)$r->hadir, (int)$r->terlambat, (int)$r->sakit, (int)$r->izin, (int)$r->alpa, (int)$r->belum, (int)$r->total, $r->pct === NULL ? '' : $r->pct);
+            }
+            audit('ekspor_rekap_bulanan', $ym);
+            export_table('rekap-bulanan-' . $ym, array('No', 'NIS', 'Nama', 'Kelas', 'Hadir', 'Terlambat', 'Sakit', 'Izin', 'Alpa', 'Belum Dikonfirmasi', 'Total Sesi', '% Hadir'), $out, $fmt, array('sheet' => 'Rekap ' . $ym, 'text_cols' => array(1)));
+        }
+        $this->render('rekap/bulanan', array('title' => 'Rekap Bulanan', 'ym' => $ym, 'class_id' => $cid, 'rows' => $rows,
+            'classes' => $this->db->order_by('name')->get('classes')->result()));
+    }
 }

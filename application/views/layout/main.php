@@ -13,11 +13,17 @@ $admin_menu = array(
     array('master/academic_years', 'bi-calendar-range', 'Tahun Ajaran'), array('master/semesters', 'bi-calendar2-week', 'Semester'),
     array('--', '', 'Jadwal & Kartu'),
     array('master/schedules', 'bi-calendar3', 'Jadwal Pelajaran'), array('qr', 'bi-qr-code', 'Generate QR Code'), array('qr/cards', 'bi-person-vcard', 'Cetak Kartu Pelajar'),
+    array('--', '', 'Informasi Sekolah'),
+    array('master/announcements', 'bi-megaphone', 'Pengumuman'), array('master/academic_events', 'bi-calendar-event', 'Kalender Akademik'), array('master/extracurriculars', 'bi-trophy', 'Ekstrakurikuler'),
+    array('--', '', 'Orang Tua & Keuangan'),
+    array('akunortu', 'bi-person-lock', 'Akun Orang Tua'), array('izin', 'bi-envelope-paper', 'Izin & Sakit Siswa'), array('iuran', 'bi-cash-coin', 'Iuran, SPP & Infaq'),
     array('--', '', 'Kehadiran'),
-    array('rekap', 'bi-table', 'Rekap Kehadiran'), array('report', 'bi-file-earmark-bar-graph', 'Laporan'), array('scan/history', 'bi-clock-history', 'Riwayat Sesi'),
+    array('rekap/bulanan', 'bi-calendar-month', 'Rekap Bulanan'), array('rekap', 'bi-table', 'Rekap Kehadiran'), array('report', 'bi-file-earmark-bar-graph', 'Laporan'), array('scan/history', 'bi-clock-history', 'Riwayat Sesi'),
     array('--', '', 'Sistem'),
     array('wa', 'bi-whatsapp', 'Notifikasi WhatsApp'), array('master/users', 'bi-shield-lock', 'Akun Admin'), array('settings/audit', 'bi-journal-text', 'Audit Log'), array('settings', 'bi-gear', 'Pengaturan'),
 );
+$best = ''; foreach ($admin_menu as $m) { if ($m[0] !== '--' && strpos($uri, $m[0]) === 0 && strlen($m[0]) > strlen($best)) $best = $m[0]; }
+if ($best === '' && ($uri === '' )) $best = 'dashboard';
 $guru_menu = array(array('dashboard', 'bi-house', 'Beranda'), array('scan/history', 'bi-clock-history', 'Riwayat'), array('scan/notifications', 'bi-whatsapp', 'WhatsApp'), array('logout', 'bi-box-arrow-right', 'Keluar'));
 ?>
 <!doctype html>
@@ -48,7 +54,7 @@ $guru_menu = array(array('dashboard', 'bi-house', 'Beranda'), array('scan/histor
     </div>
     <div class="sidebar-scroll">
     <?php foreach ($admin_menu as $m): if ($m[0] === '--'): ?><div class="menu-title"><?= e($m[2]) ?></div><?php else: ?>
-      <a class="menu-link <?= $act($m[0]) ?>" href="<?= site_url($m[0]) ?>"><i class="bi <?= $m[1] ?>"></i><span><?= e($m[2]) ?></span></a>
+      <a class="menu-link <?= $m[0] === $best ? 'active' : '' ?>" href="<?= site_url($m[0]) ?>"><i class="bi <?= $m[1] ?>"></i><span><?= e($m[2]) ?></span></a>
     <?php endif; endforeach; ?>
     </div>
     <div class="sidebar-foot"><i class="bi bi-person-circle"></i> <?= e($this->session->userdata('name')) ?><a href="<?= site_url('logout') ?>" class="float-end text-white" title="Keluar"><i class="bi bi-box-arrow-right"></i></a></div>
@@ -61,6 +67,7 @@ $guru_menu = array(array('dashboard', 'bi-house', 'Beranda'), array('scan/histor
     </div>
   </main>
 </div>
+<?php elseif ($role === 'ortu'): $this->load->view('layout/portal_shell', array('content' => $content, 'school' => $school)); ?>
 <?php else: ?>
 <header class="topbar guru-top"><span class="fw-semibold"><i class="bi bi-qr-code-scan"></i> <?= e($school) ?></span><small><?= e($this->session->userdata('name')) ?></small></header>
 <main class="container py-3 guru-main"><?= $content ?></main>

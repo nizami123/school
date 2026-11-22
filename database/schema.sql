@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   failed_logins TINYINT UNSIGNED NOT NULL DEFAULT 0,
   locked_until DATETIME NULL,
   last_login DATETIME NULL,
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id)
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS teachers (
 
 CREATE TABLE IF NOT EXISTS parents (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NULL UNIQUE,
   name VARCHAR(120) NOT NULL,
   father_name VARCHAR(120) NULL,
   mother_name VARCHAR(120) NULL,
@@ -45,7 +47,8 @@ CREATE TABLE IF NOT EXISTS parents (
   whatsapp VARCHAR(20) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_parents_wa (whatsapp)
+  KEY idx_parents_wa (whatsapp),
+  CONSTRAINT fk_parents_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS academic_years (
@@ -269,6 +272,150 @@ CREATE TABLE IF NOT EXISTS scan_logs (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_scanlog_session (session_id, created_at),
   KEY idx_scanlog_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(160) NOT NULL,
+  category ENUM('umum','libur','jadwal','kegiatan','ujian','rapat') NOT NULL DEFAULT 'umum',
+  body TEXT NOT NULL,
+  class_id INT UNSIGNED NULL,
+  event_date DATE NULL,
+  event_time VARCHAR(20) NULL,
+  location VARCHAR(120) NULL,
+  need_rsvp TINYINT(1) NOT NULL DEFAULT 0,
+  is_pinned TINYINT(1) NOT NULL DEFAULT 0,
+  publish_date DATE NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ann_pub (is_active, publish_date),
+  CONSTRAINT fk_ann_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS announcement_rsvps (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  announcement_id INT UNSIGNED NOT NULL,
+  parent_id INT UNSIGNED NOT NULL,
+  response ENUM('hadir','tidak') NOT NULL,
+  note VARCHAR(255) NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_rsvp (announcement_id, parent_id),
+  CONSTRAINT fk_rsvp_ann FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsvp_parent FOREIGN KEY (parent_id) REFERENCES parents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS academic_events (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(160) NOT NULL,
+  event_type ENUM('libur','ujian','kegiatan','rapat','lainnya') NOT NULL DEFAULT 'kegiatan',
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  description VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_evt_date (start_date, end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  student_id INT UNSIGNED NOT NULL,
+  parent_id INT UNSIGNED NOT NULL,
+  leave_type ENUM('izin','sakit') NOT NULL,
+  date_from DATE NOT NULL,
+  date_to DATE NOT NULL,
+  reason VARCHAR(500) NOT NULL,
+  attachment VARCHAR(255) NULL,
+  status ENUM('menunggu','disetujui','ditolak','dibatalkan') NOT NULL DEFAULT 'menunggu',
+  review_note VARCHAR(255) NULL,
+  reviewed_by INT UNSIGNED NULL,
+  reviewed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_leave_status (status, date_from),
+  KEY idx_leave_student (student_id, date_from),
+  CONSTRAINT fk_leave_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  CONSTRAINT fk_leave_parent FOREIGN KEY (parent_id) REFERENCES parents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS fee_types (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  category ENUM('spp','iuran','infaq','lainnya') NOT NULL DEFAULT 'iuran',
+  frequency ENUM('bulanan','sekali','bebas') NOT NULL DEFAULT 'bulanan',
+  amount INT UNSIGNED NOT NULL DEFAULT 0,
+  description VARCHAR(255) NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  student_id INT UNSIGNED NOT NULL,
+  fee_type_id INT UNSIGNED NOT NULL,
+  period VARCHAR(30) NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  amount INT UNSIGNED NOT NULL,
+  paid_total INT UNSIGNED NOT NULL DEFAULT 0,
+  due_date DATE NULL,
+  status ENUM('belum','sebagian','lunas','batal') NOT NULL DEFAULT 'belum',
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_invoice (student_id, fee_type_id, period),
+  KEY idx_inv_status (status, due_date),
+  CONSTRAINT fk_inv_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inv_fee FOREIGN KEY (fee_type_id) REFERENCES fee_types(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payments (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  invoice_id INT UNSIGNED NOT NULL,
+  amount INT UNSIGNED NOT NULL,
+  method ENUM('tunai','transfer','lainnya') NOT NULL DEFAULT 'transfer',
+  paid_at DATETIME NOT NULL,
+  proof VARCHAR(255) NULL,
+  note VARCHAR(255) NULL,
+  status ENUM('menunggu','terverifikasi','ditolak') NOT NULL DEFAULT 'menunggu',
+  receipt_no VARCHAR(30) NULL UNIQUE,
+  submitted_by_parent TINYINT(1) NOT NULL DEFAULT 0,
+  verified_by INT UNSIGNED NULL,
+  verified_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_pay_invoice (invoice_id),
+  KEY idx_pay_status (status),
+  CONSTRAINT fk_pay_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS extracurriculars (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  coach VARCHAR(120) NULL,
+  day TINYINT UNSIGNED NULL,
+  start_time TIME NULL,
+  end_time TIME NULL,
+  location VARCHAR(100) NULL,
+  quota SMALLINT UNSIGNED NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS extracurricular_members (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  extracurricular_id INT UNSIGNED NOT NULL,
+  student_id INT UNSIGNED NOT NULL,
+  status ENUM('menunggu','aktif','ditolak','keluar') NOT NULL DEFAULT 'menunggu',
+  requested_by_parent TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ekskul_member (extracurricular_id, student_id),
+  CONSTRAINT fk_em_ekskul FOREIGN KEY (extracurricular_id) REFERENCES extracurriculars(id) ON DELETE CASCADE,
+  CONSTRAINT fk_em_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS=1;

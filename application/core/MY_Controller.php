@@ -5,6 +5,7 @@ class MY_Controller extends CI_Controller
     protected $uid = 0;
     protected $role = '';
     protected $teacher_id = 0;
+    protected $parent_id = 0;
 
     public function __construct()
     {
@@ -19,6 +20,7 @@ class MY_Controller extends CI_Controller
         $this->uid = (int)$this->session->userdata('uid');
         $this->role = (string)$this->session->userdata('role');
         $this->teacher_id = (int)$this->session->userdata('teacher_id');
+        $this->parent_id = (int)$this->session->userdata('parent_id');
     }
 
     protected function need($roles = NULL)

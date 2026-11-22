@@ -65,6 +65,7 @@ class Master extends MY_Controller
             if ($copy) { unset($row['id']); }
         } else {
             $row = array('is_active' => 1);
+            if (!empty($e['defaults'])) $row = array_merge($row, $e['defaults']);
             if ($key === 'schedules') { $s = $this->active_semester(); if ($s) $row['semester_id'] = $s->id; }
             if ($key === 'classes') { $y = $this->db->get_where('academic_years', array('is_active' => 1))->row(); if ($y) $row['academic_year_id'] = $y->id; }
         }
@@ -218,6 +219,36 @@ class Master extends MY_Controller
             $this->load->model('Qr_model');
             $this->Qr_model->generate($id, 'Dibuat otomatis', $this->uid);
         }
+    }
+
+    private function before_announcements($d, $id)
+    {
+        if (!empty($d['class_id'])) $d['class_id'] = (int)$d['class_id'];
+        foreach (array('publish_date', 'event_date') as $k) {
+            if (!empty($d[$k]) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d[$k])) $this->errors[] = 'Format tanggal tidak valid.';
+        }
+        if (!$id) $d['created_by'] = $this->uid;
+        return $d;
+    }
+
+    private function before_academic_events($d, $id)
+    {
+        if (!empty($d['start_date']) && !empty($d['end_date']) && $d['end_date'] < $d['start_date']) $this->errors[] = 'Tanggal selesai tidak boleh sebelum tanggal mulai.';
+        return $d;
+    }
+
+    private function before_extracurriculars($d, $id)
+    {
+        if (!empty($d['start_time']) && !empty($d['end_time']) && $d['end_time'] <= $d['start_time']) $this->errors[] = 'Jam selesai harus setelah jam mulai.';
+        if (isset($d['quota']) && $d['quota'] !== NULL && $d['quota'] < 1) $d['quota'] = NULL;
+        return $d;
+    }
+
+    private function before_fee_types($d, $id)
+    {
+        if (isset($d['amount']) && $d['amount'] < 0) $this->errors[] = 'Nominal tidak boleh negatif.';
+        if (isset($d['frequency']) && $d['frequency'] !== 'bebas' && (int)$d['amount'] < 1) $this->errors[] = 'Nominal wajib diisi (lebih dari 0) kecuali jenis Bebas.';
+        return $d;
     }
 
     private function before_classes($d, $id)
@@ -420,7 +451,8 @@ class Master extends MY_Controller
                     $v = isset($r[$c[0]]) ? $r[$c[0]] : '';
                     if ($t === 'active') $v = $v ? 'Aktif' : 'Nonaktif';
                     if ($t === 'day') $v = hari_id($v);
-                    if ($t === 'time') $v = substr($v, 0, 5);
+                    if ($t === 'time') $v = $v ? substr($v, 0, 5) : '';
+                    if ($t === 'date') $v = $v ? tanggal_id($v, FALSE) : '';
                     $line[] = $v === NULL ? '' : $v;
                     if ($key === 'students' && $c[0] === 'name') $line[] = isset($r['gender']) ? $r['gender'] : '';
                 }

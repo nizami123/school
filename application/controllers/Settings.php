@@ -3,7 +3,7 @@
 class Settings extends MY_Controller
 {
     private $plain = array('school_name', 'school_address', 'school_phone', 'school_email', 'start_time', 'break_start', 'break_end', 'late_minutes',
-        'wa_policy', 'wa_delay', 'card_note',
+        'wa_policy', 'wa_delay', 'card_note', 'pay_bank', 'pay_account', 'pay_holder', 'pay_note',
         'tpl_hadir', 'tpl_terlambat', 'tpl_belum', 'tpl_izin', 'tpl_sakit', 'tpl_rekap');
     private $flags = array('wa_enabled', 'wa_notify_hadir', 'wa_notify_terlambat', 'wa_notify_absent', 'wa_notify_izin', 'wa_notify_sakit', 'wa_notify_daily');
 

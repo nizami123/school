@@ -79,7 +79,9 @@ if (!function_exists('status_label')) {
     function status_label($s)
     {
         $m = array('hadir' => 'Hadir', 'terlambat' => 'Terlambat', 'sakit' => 'Sakit', 'izin' => 'Izin', 'alpa' => 'Alpa', 'belum' => 'Belum Dikonfirmasi',
-                   'menunggu' => 'Menunggu', 'mengirim' => 'Mengirim', 'terkirim' => 'Terkirim', 'gagal' => 'Gagal');
+                   'menunggu' => 'Menunggu', 'mengirim' => 'Mengirim', 'terkirim' => 'Terkirim', 'gagal' => 'Gagal',
+                   'disetujui' => 'Disetujui', 'ditolak' => 'Ditolak', 'dibatalkan' => 'Dibatalkan', 'terverifikasi' => 'Terverifikasi',
+                   'lunas' => 'Lunas', 'sebagian' => 'Sebagian', 'batal' => 'Dibatalkan', 'aktif' => 'Aktif', 'keluar' => 'Keluar');
         return isset($m[$s]) ? $m[$s] : $s;
     }
 }
@@ -87,7 +89,8 @@ if (!function_exists('status_badge')) {
     function status_badge($s)
     {
         $c = array('hadir' => 'success', 'terkirim' => 'success', 'terlambat' => 'warning text-dark', 'menunggu' => 'secondary', 'mengirim' => 'info',
-                   'sakit' => 'info', 'izin' => 'primary', 'alpa' => 'danger', 'gagal' => 'danger', 'belum' => 'secondary');
+                   'sakit' => 'info', 'izin' => 'primary', 'alpa' => 'danger', 'gagal' => 'danger', 'belum' => 'secondary',
+                   'disetujui' => 'success', 'ditolak' => 'danger', 'dibatalkan' => 'secondary', 'terverifikasi' => 'success', 'lunas' => 'success', 'sebagian' => 'warning text-dark', 'batal' => 'secondary', 'aktif' => 'success', 'keluar' => 'secondary');
         return '<span class="badge bg-' . (isset($c[$s]) ? $c[$s] : 'secondary') . '">' . e(status_label($s)) . '</span>';
     }
 }
@@ -176,5 +179,74 @@ if (!function_exists('export_table')) {
         foreach ($rows as $r) { fputcsv($o, array_values($r), ';'); }
         fclose($o);
         exit;
+    }
+}
+
+if (!function_exists('rupiah')) {
+    function rupiah($n) { return 'Rp ' . number_format((float)$n, 0, ',', '.'); }
+}
+if (!function_exists('bulan_id')) {
+    /** 'YYYY-MM' -> 'Oktober 2026' */
+    function bulan_id($ym)
+    {
+        $b = array(1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember');
+        if (!preg_match('/^(\d{4})-(\d{2})/', (string)$ym, $m)) return (string)$ym;
+        return $b[(int)$m[2]] . ' ' . $m[1];
+    }
+}
+if (!function_exists('kategori_badge')) {
+    function kategori_badge($c)
+    {
+        $m = array('umum' => 'secondary', 'libur' => 'danger', 'jadwal' => 'warning text-dark', 'kegiatan' => 'success', 'ujian' => 'primary', 'rapat' => 'info text-dark', 'lainnya' => 'secondary');
+        $l = array('umum' => 'Umum', 'libur' => 'Libur', 'jadwal' => 'Perubahan Jadwal', 'kegiatan' => 'Kegiatan', 'ujian' => 'Ujian', 'rapat' => 'Rapat Wali Murid', 'lainnya' => 'Lainnya');
+        return '<span class="badge bg-' . (isset($m[$c]) ? $m[$c] : 'secondary') . '">' . e(isset($l[$c]) ? $l[$c] : $c) . '</span>';
+    }
+}
+
+if (!function_exists('send_private_file')) {
+    /** Kirim file dari uploads/private (lampiran izin / bukti bayar) setelah izin akses diperiksa pemanggil. */
+    function send_private_file($name)
+    {
+        if (!preg_match('/^[a-f0-9]{16,40}\.(jpg|jpeg|png|pdf)$/i', (string)$name)) show_404();
+        $path = FCPATH . 'uploads/private/' . $name;
+        if (!is_file($path)) show_404();
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $mime = array('jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'pdf' => 'application/pdf');
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+        header('Content-Type: ' . $mime[$ext]);
+        header('Content-Length: ' . filesize($path));
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, max-age=0, no-store');
+        readfile($path);
+        exit;
+    }
+}
+if (!function_exists('upload_private')) {
+    /** Unggah lampiran (JPG/PNG/PDF maks 2 MB) ke uploads/private. Mengembalikan array(nama_file|NULL, pesan_error). */
+    function upload_private($field)
+    {
+        $CI =& get_instance();
+        if (empty($_FILES[$field]['name'])) return array(NULL, '');
+        $CI->load->library('upload');
+        $CI->upload->initialize(array('upload_path' => FCPATH . 'uploads/private/', 'allowed_types' => 'jpg|jpeg|png|pdf', 'max_size' => 2048, 'encrypt_name' => TRUE), TRUE);
+        if (!$CI->upload->do_upload($field)) return array(NULL, strip_tags($CI->upload->display_errors('', '')));
+        return array($CI->upload->data('file_name'), '');
+    }
+}
+if (!function_exists('apply_leave_to_sessions')) {
+    /** Terapkan izin/sakit yang disetujui ke sesi absensi yang SUDAH ada (tidak menimpa hadir/terlambat). */
+    function apply_leave_to_sessions($leave)
+    {
+        $CI =& get_instance();
+        $st = $CI->db->get_where('students', array('id' => $leave->student_id))->row();
+        if (!$st || !$st->class_id) return 0;
+        $now = date('Y-m-d H:i:s');
+        $note = ($leave->leave_type === 'sakit' ? 'Sakit' : 'Izin') . ' (pengajuan orang tua #' . $leave->id . ')';
+        $CI->db->query("INSERT INTO attendance_records (session_id, student_id, status, source, note, created_at, updated_at)
+            SELECT ses.id, ?, ?, 'manual', ?, ?, ? FROM attendance_sessions ses WHERE ses.class_id=? AND ses.session_date BETWEEN ? AND ?
+            ON DUPLICATE KEY UPDATE note=IF(attendance_records.status IN ('hadir','terlambat'), attendance_records.note, VALUES(note)),
+              status=IF(attendance_records.status IN ('hadir','terlambat'), attendance_records.status, VALUES(status)), updated_at=VALUES(updated_at)",
+            array($st->id, $leave->leave_type, $note, $now, $now, $st->class_id, $leave->date_from, $leave->date_to));
+        return $CI->db->affected_rows();
     }
 }

@@ -6,6 +6,7 @@ class Dashboard extends MY_Controller
 
     public function index()
     {
+        if ($this->role === 'ortu') redirect('portal');
         $today = date('Y-m-d');
         $this->load->model('Attendance_model');
         $this->Attendance_model->close_stale();

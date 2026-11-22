@@ -22,11 +22,15 @@
   <?php if ($t === 'photo'): ?><img class="avatar" src="<?= student_photo($v) ?>" alt="">
   <?php elseif ($t === 'active'): ?><?= $v ? '<span class="badge bg-success">Aktif</span>' : '<span class="badge bg-secondary">Nonaktif</span>' ?>
   <?php elseif ($t === 'day'): ?><?= hari_id($v) ?>
-  <?php elseif ($t === 'time'): ?><?= substr($v, 0, 5) ?>
+  <?php elseif ($t === 'time'): ?><?= $v ? substr($v, 0, 5) : '-' ?>
+  <?php elseif ($t === 'date'): ?><?= $v ? tanggal_id($v, FALSE) : '-' ?>
+  <?php elseif ($t === 'money'): ?><?= rupiah($v) ?>
+  <?php elseif ($t === 'cat'): ?><span class="badge bg-light text-dark border"><?= e(ucfirst($v)) ?></span>
   <?php else: ?><?= e($v) ?><?php endif; ?></td><?php endforeach; ?>
 <td class="text-end text-nowrap">
   <?php if (!empty($e['qr'])): ?><a class="btn btn-sm btn-outline-success" title="Kartu" href="<?= site_url('qr/cards?scope=student&id=' . $r['id']) ?>"><i class="bi bi-person-vcard"></i></a>
     <a class="btn btn-sm btn-outline-secondary" title="Rekap" href="<?= site_url('rekap/siswa/' . $r['id']) ?>"><i class="bi bi-table"></i></a><?php endif; ?>
+  <?php if (!empty($e['actions'])): foreach ($e['actions'] as $a): ?><a class="btn btn-sm btn-outline-success" title="<?= e($a[2]) ?>" href="<?= site_url(str_replace('{id}', $r['id'], $a[0])) ?>"><i class="bi <?= $a[1] ?>"></i></a> <?php endforeach; endif; ?>
   <?php if (!empty($e['duplicate'])): ?><a class="btn btn-sm btn-outline-secondary" title="Duplikasi" href="<?= site_url('master/' . $key . '/form?copy=' . $r['id']) ?>"><i class="bi bi-copy"></i></a><?php endif; ?>
   <a class="btn btn-sm btn-outline-primary" title="Ubah" href="<?= site_url('master/' . $key . '/form/' . $r['id']) ?>"><i class="bi bi-pencil"></i></a>
   <?php if (!empty($e['toggle'])): ?><?= form_open('master/' . $key . '/toggle/' . $r['id'], array('class' => 'd-inline', 'data-confirm' => 'Ubah status aktif/nonaktif?')) ?><button class="btn btn-sm btn-outline-warning" title="Aktif/Nonaktif"><i class="bi bi-toggle-on"></i></button><?= form_close() ?><?php endif; ?>

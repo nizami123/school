@@ -9,13 +9,14 @@ class Auth extends MY_Controller
         if ($this->input->method() === 'post') {
             $u = trim((string)$this->input->post('username'));
             $p = (string)$this->input->post('password');
-            $row = $this->db->query('SELECT u.*, r.name AS role_name, t.id AS teacher_id FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN teachers t ON t.user_id=u.id WHERE u.username=? LIMIT 1', array($u))->row();
+            $row = $this->db->query('SELECT u.*, r.name AS role_name, t.id AS teacher_id, pr.id AS parent_id FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN teachers t ON t.user_id=u.id LEFT JOIN parents pr ON pr.user_id=u.id WHERE u.username=? LIMIT 1', array($u))->row();
             if ($row && $row->locked_until && strtotime($row->locked_until) > time()) {
                 $error = 'Akun terkunci sementara karena terlalu banyak percobaan. Coba lagi beberapa menit lagi.';
             } elseif ($row && $row->is_active && password_verify($p, $row->password)) {
                 $this->db->update('users', array('failed_logins' => 0, 'locked_until' => NULL, 'last_login' => date('Y-m-d H:i:s')), array('id' => $row->id));
                 $this->session->sess_regenerate(TRUE);
-                $this->session->set_userdata(array('uid' => (int)$row->id, 'role' => $row->role_name, 'name' => $row->name, 'teacher_id' => (int)$row->teacher_id));
+                $this->session->set_userdata(array('uid' => (int)$row->id, 'role' => $row->role_name, 'name' => $row->name, 'teacher_id' => (int)$row->teacher_id,
+                    'parent_id' => (int)$row->parent_id, 'must_change' => (int)$row->must_change_password));
                 audit('login', $row->username);
                 redirect('dashboard');
             } else {

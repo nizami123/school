@@ -75,7 +75,7 @@ class Install extends CI_Controller
 
         // 2. Data awal
         $now = date('Y-m-d H:i:s');
-        $db->query("INSERT IGNORE INTO roles (id, name, label) VALUES (1,'admin','Admin Sekolah'),(2,'guru','Guru')");
+        $db->query("INSERT IGNORE INTO roles (id, name, label) VALUES (1,'admin','Admin Sekolah'),(2,'guru','Guru'),(3,'ortu','Orang Tua')");
         $db->insert('users', array('role_id' => 1, 'name' => trim($p['admin_name']), 'username' => trim($p['admin_user']),
             'password' => password_hash($p['admin_pass'], PASSWORD_DEFAULT), 'is_active' => 1, 'created_at' => $now, 'updated_at' => $now));
 

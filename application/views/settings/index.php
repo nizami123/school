@@ -1,7 +1,7 @@
 <?php $s = function ($k, $d = '') { return e(setting($k, $d)); }; $chk = function ($k, $d = '0') { return setting($k, $d) === '1' ? 'checked' : ''; };
 $eff = explode(',', setting('effective_days', '1,2,3,4,5')); ?>
 <?= form_open_multipart('settings/save') ?>
-<ul class="nav nav-tabs mb-3"><li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#t1">Sekolah</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t2">Jam &amp; Absensi</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t3">WhatsApp</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t4">Template Pesan</button></li></ul>
+<ul class="nav nav-tabs mb-3"><li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#t1">Sekolah</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t2">Jam &amp; Absensi</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t3">WhatsApp</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t4">Template Pesan</button></li><li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#pay" id="payTab">Pembayaran</button></li></ul>
 <div class="tab-content card card-body" style="max-width:900px">
 <div class="tab-pane fade show active" id="t1"><div class="row g-3">
   <div class="col-12"><label class="form-label">Nama Sekolah</label><input name="school_name" class="form-control" value="<?= $s('school_name') ?>" required></div>
@@ -36,8 +36,13 @@ $eff = explode(',', setting('effective_days', '1,2,3,4,5')); ?>
 <?php foreach (array('hadir' => 'Siswa Hadir', 'terlambat' => 'Siswa Terlambat', 'belum' => 'Belum Absen / Tidak Hadir', 'izin' => 'Izin', 'sakit' => 'Sakit', 'rekap' => 'Rekap Harian') as $k => $l): ?>
 <div class="mb-3"><label class="form-label fw-semibold"><?= $l ?></label>
 <textarea name="tpl_<?= $k ?>" class="form-control" rows="6"><?= e(setting('tpl_' . $k, $defaults['tpl_' . $k])) ?></textarea></div><?php endforeach; ?></div>
+<div class="tab-pane fade" id="pay"><p class="small text-muted">Rekening yang ditampilkan kepada orang tua di portal saat membayar iuran/SPP/infaq. Pembayaran dikonfirmasi manual oleh admin (menu Iuran &gt; Verifikasi).</p><div class="row g-3">
+  <div class="col-md-4"><label class="form-label">Nama Bank</label><input name="pay_bank" class="form-control" value="<?= $s('pay_bank') ?>" maxlength="60" placeholder="mis. BSI / BRI"></div>
+  <div class="col-md-4"><label class="form-label">Nomor Rekening</label><input name="pay_account" class="form-control" value="<?= $s('pay_account') ?>" maxlength="40"></div>
+  <div class="col-md-4"><label class="form-label">Atas Nama</label><input name="pay_holder" class="form-control" value="<?= $s('pay_holder') ?>" maxlength="80"></div>
+  <div class="col-12"><label class="form-label">Petunjuk Pembayaran (opsional)</label><textarea name="pay_note" class="form-control" rows="3" maxlength="500"><?= $s('pay_note') ?></textarea></div></div></div>
 </div>
 <div class="mt-3"><button class="btn btn-primary btn-lg"><i class="bi bi-save"></i> Simpan Pengaturan</button></div>
 <?= form_close() ?>
-<div class="mt-3"><a class="btn btn-outline-secondary btn-sm" href="<?= site_url('seed') ?>"><i class="bi bi-database"></i> Data Dummy (uji coba)</a></div>
 <?= form_open('settings/wa_test', array('id' => 'waTest')) ?><?= form_close() ?>
+<script>document.addEventListener('DOMContentLoaded',function(){if(location.hash==='#pay'){var b=document.getElementById('payTab');if(b)bootstrap.Tab.getOrCreateInstance(b).show();}});</script>

@@ -106,4 +106,23 @@ class Report_model extends CI_Model
         $q = $this->db->query("SELECT ses.session_date, sub.name subject, ses.start_time, r.status, r.scanned_at FROM attendance_records r JOIN attendance_sessions ses ON ses.id=r.session_id JOIN subjects sub ON sub.id=ses.subject_id WHERE r.student_id=? AND ses.session_date BETWEEN ? AND ? ORDER BY ses.session_date, ses.start_time", array($student_id, $f['from'], $f['to']));
         return $q->result();
     }
+
+    /** Rekap bulanan otomatis per siswa. $ym 'YYYY-MM'. Mengembalikan baris per siswa (urut kelas, nama). */
+    public function monthly($ym, $class_id = 0, $student_id = 0)
+    {
+        $from = $ym . '-01';
+        $to = date('Y-m-t', strtotime($from));
+        $sql = "SELECT st.id, st.nis, st.name, c.name class_name,
+                COUNT(r.id) total, SUM(r.status='hadir') hadir, SUM(r.status='terlambat') terlambat, SUM(r.status='sakit') sakit, SUM(r.status='izin') izin,
+                SUM(r.status='alpa') alpa, SUM(r.status='belum') belum,
+                ROUND(SUM(r.status IN ('hadir','terlambat'))*100/NULLIF(COUNT(r.id),0),1) pct
+            FROM students st LEFT JOIN classes c ON c.id=st.class_id
+            LEFT JOIN (SELECT r2.* FROM attendance_records r2 JOIN attendance_sessions s2 ON s2.id=r2.session_id WHERE s2.session_date BETWEEN ? AND ?) r ON r.student_id=st.id
+            WHERE st.deleted_at IS NULL AND st.is_active=1";
+        $a = array($from, $to);
+        if ($class_id) { $sql .= ' AND st.class_id=?'; $a[] = (int)$class_id; }
+        if ($student_id) { $sql .= ' AND st.id=?'; $a[] = (int)$student_id; }
+        $sql .= ' GROUP BY st.id, st.nis, st.name, c.name ORDER BY c.name, st.name';
+        return $this->db->query($sql, $a)->result();
+    }
 }
