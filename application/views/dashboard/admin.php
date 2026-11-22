@@ -21,9 +21,18 @@
   <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">Siswa Belum Hadir (sesi yang sudah ditutup)</h2>
     <table class="table table-sm mb-0"><thead><tr><th>Siswa</th><th>Kelas</th><th>Mapel</th><th>Status</th></tr></thead><tbody>
     <?php foreach ($missing as $r): ?><tr><td><?= e($r->name) ?></td><td><?= e($r->class_name) ?></td><td><?= e($r->subject) ?></td><td><?= status_badge($r->status) ?></td></tr><?php endforeach; if (!$missing): ?><tr><td colspan="4" class="text-muted">Tidak ada.</td></tr><?php endif; ?></tbody></table></div></div></div>
+  <?php if (!empty($daily_classes) || attendance_mode() === 'harian'): ?>
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">Absensi Harian per Kelas</h2><div class="table-responsive list-scroll">
+    <table class="table table-sm mb-0 align-middle"><thead><tr><th>Kelas</th><th>Wali Kelas</th><th>Hadir</th><th></th></tr></thead><tbody>
+    <?php foreach ($daily_classes as $c): ?><tr><td><?= e($c->name) ?></td><td><?= e($c->homeroom) ?: '-' ?></td><td><?= (int)$c->present ?>/<?= (int)$c->total ?></td>
+    <td class="text-end"><?php if ($c->ses_id && $c->ses_status === 'open'): ?><a class="btn btn-sm btn-primary" href="<?= site_url('scan/run/' . $c->ses_id) ?>">Lanjutkan</a>
+    <?php elseif ($c->ses_id): ?><a class="btn btn-sm btn-outline-primary" href="<?= site_url('scan/detail/' . $c->ses_id) ?>">Rekap</a>
+    <?php else: ?><?= form_open('scan/start_harian', array('class' => 'd-inline')) ?><input type="hidden" name="class_id" value="<?= (int)$c->id ?>"><button class="btn btn-sm btn-success">Mulai</button><?= form_close() ?><?php endif; ?></td></tr><?php endforeach; if (!$daily_classes): ?><tr><td colspan="4" class="text-muted">Belum ada kelas.</td></tr><?php endif; ?></tbody></table></div></div></div></div>
+  <?php else: ?>
   <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">Jadwal Pembelajaran Hari Ini</h2><div class="table-responsive list-scroll">
     <table class="table table-sm mb-0"><thead><tr><th>Jam</th><th>Kelas</th><th>Mapel</th><th>Guru</th><th>Sesi</th></tr></thead><tbody>
     <?php foreach ($schedule_today as $r): ?><tr><td><?= substr($r->start_time, 0, 5) ?>–<?= substr($r->end_time, 0, 5) ?></td><td><?= e($r->class_name) ?></td><td><?= e($r->subject) ?></td><td><?= e($r->teacher) ?></td><td><?= $r->ses_status === 'open' ? '<span class="badge bg-success">Berjalan</span>' : ($r->ses_status === 'closed' ? '<span class="badge bg-secondary">Selesai</span>' : '<span class="text-muted">-</span>') ?></td></tr><?php endforeach; if (!$schedule_today): ?><tr><td colspan="5" class="text-muted">Tidak ada jadwal hari ini.</td></tr><?php endif; ?></tbody></table></div></div></div></div>
+  <?php endif; ?>
   <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">Aktivitas Guru Hari Ini</h2>
     <table class="table table-sm mb-0"><thead><tr><th>Guru</th><th>Sesi</th><th>Hadir</th><th>Scan Terakhir</th></tr></thead><tbody>
     <?php foreach ($teacher_activity as $r): ?><tr><td><?= e($r->name) ?></td><td><?= (int)$r->sessions ?></td><td><?= (int)$r->present ?></td><td><?= $r->last_scan ? jam_id($r->last_scan, FALSE) : '-' ?></td></tr><?php endforeach; if (!$teacher_activity): ?><tr><td colspan="4" class="text-muted">Belum ada aktivitas.</td></tr><?php endif; ?></tbody></table></div></div>

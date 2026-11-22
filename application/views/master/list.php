@@ -3,15 +3,15 @@
   <a class="btn btn-primary" href="<?= site_url('master/' . $key . '/form') ?>"><i class="bi bi-plus-lg"></i> Tambah <?= e($e['singular']) ?></a>
   <?php if ($key === 'schedules'): ?><a class="btn btn-outline-primary" href="<?= site_url('master/schedules/week') ?>"><i class="bi bi-calendar-week"></i> Tampilan Mingguan</a><?php endif; ?>
   <?php $hasx = class_exists('PhpOffice\\PhpSpreadsheet\\Spreadsheet'); ?>
-  <?php if ($key !== 'users'): ?><div class="btn-group"><?php if ($hasx): ?><a class="btn btn-outline-success" href="<?= site_url('master/' . $key . '/export?format=xlsx') ?>"><i class="bi bi-file-earmark-excel"></i> Ekspor Excel</a><?php endif; ?><a class="btn btn-outline-secondary" href="<?= site_url('master/' . $key . '/export?format=csv') ?>"><?= $hasx ? 'CSV' : '<i class="bi bi-file-earmark-excel"></i> Ekspor CSV' ?></a></div><?php endif; ?>
+  <?php if ($key !== 'users' && $hasx): ?><a class="btn btn-outline-success" href="<?= site_url('master/' . $key . '/export') ?>"><i class="bi bi-file-earmark-excel"></i> Ekspor Excel</a><?php endif; ?>
   <?php if (!empty($e['import'])): ?>
     <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#imp"><i class="bi bi-upload"></i> Impor</button>
-    <?php if ($hasx): ?><a class="btn btn-link" href="<?= site_url('master/' . $key . '/template?format=xlsx') ?>">Template Excel</a><?php endif; ?><a class="btn btn-link" href="<?= site_url('master/' . $key . '/template?format=csv') ?>">Template CSV</a>
+    <?php if ($hasx): ?><a class="btn btn-link" href="<?= site_url('master/' . $key . '/template') ?>"><i class="bi bi-file-earmark-excel"></i> Template Excel</a><?php endif; ?>
   <?php endif; ?>
 </div>
 <?php if (!empty($e['import'])): ?>
 <div class="collapse mb-3" id="imp"><?= form_open_multipart('master/' . $key . '/import', array('class' => 'row g-2 align-items-end')) ?>
-  <div class="col-md-6"><label class="form-label">File Excel (.xlsx) atau CSV</label><input type="file" name="file" class="form-control" accept=".csv,.xlsx,.xls" required></div>
+  <div class="col-md-6"><label class="form-label">File Excel (.xlsx)</label><input type="file" name="file" class="form-control" accept=".xlsx,.xls" required></div>
   <div class="col-md-3"><button class="btn btn-primary">Unggah &amp; Impor</button></div>
   <div class="col-12 small text-muted">Gunakan template (kolom NIS/NISN/WhatsApp berformat Teks agar angka 0 di depan tidak hilang). Hasil ekspor juga bisa diimpor kembali. Baris yang salah dilewati dan dilaporkan beserta nomor barisnya.</div><?= form_close() ?></div>
 <?php endif; ?>

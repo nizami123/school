@@ -46,7 +46,7 @@ class Rekap extends MY_Controller
         $cid = (int)$this->input->get('class_id');
         $rows = $this->Report_model->monthly($ym, $cid);
         $fmt = $this->input->get('format');
-        if (in_array($fmt, array('csv', 'xlsx'), TRUE)) {
+        if ($fmt === 'xlsx') {
             $out = array();
             foreach ($rows as $i => $r) {
                 $out[] = array($i + 1, (string)$r->nis, $r->name, (string)$r->class_name, (int)$r->hadir, (int)$r->terlambat, (int)$r->sakit, (int)$r->izin, (int)$r->alpa, (int)$r->belum, (int)$r->total, $r->pct === NULL ? '' : $r->pct);

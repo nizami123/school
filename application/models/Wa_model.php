@@ -23,14 +23,14 @@ class Wa_model extends CI_Model
     public function queue_record($record_id)
     {
         if (setting('wa_enabled', '0') !== '1') return FALSE;
-        $r = $this->db->query("SELECT r.id, r.status, r.scanned_at, st.id AS sid, st.name, c.name AS class_name, sub.name AS subject, t.name AS teacher,
+        $r = $this->db->query("SELECT r.id, r.status, r.scanned_at, ses.session_type, st.id AS sid, st.name, c.name AS class_name, sub.name AS subject, t.name AS teacher,
                 ses.session_date, ses.id AS session_id, p.id AS parent_id, p.whatsapp
             FROM attendance_records r
             JOIN attendance_sessions ses ON ses.id=r.session_id
             JOIN students st ON st.id=r.student_id
             LEFT JOIN classes c ON c.id=ses.class_id
             JOIN subjects sub ON sub.id=ses.subject_id
-            JOIN teachers t ON t.id=ses.teacher_id
+            LEFT JOIN teachers t ON t.id=ses.teacher_id
             LEFT JOIN student_parents sp ON sp.student_id=st.id AND sp.is_primary=1
             LEFT JOIN parents p ON p.id=sp.parent_id
             WHERE r.id=? AND ses.school_id=?", array($record_id, school_id()))->row();
@@ -50,10 +50,11 @@ class Wa_model extends CI_Model
         $dedupe = $type . ':' . $r->id;
         if ($this->db->where('dedupe_key', $dedupe)->count_all_results('whatsapp_notifications') > 0) return FALSE;
 
-        $vars = array('nama' => $r->name, 'kelas' => $r->class_name, 'mapel' => $r->subject, 'guru' => $r->teacher,
+        $vars = array('nama' => $r->name, 'kelas' => $r->class_name, 'mapel' => $r->subject, 'guru' => (string)$r->teacher,
             'hari_tanggal' => tanggal_id($r->session_date), 'waktu' => $r->scanned_at ? jam_id($r->scanned_at) : '-', 'sekolah' => setting('school_name', 'Sekolah'));
         $tpls = $this->templates();
         $tpl = setting('tpl_' . $type, $tpls['tpl_' . $type]);
+        if ($r->session_type === 'harian') $tpl = preg_replace('/^.*\{(mapel|guru)\}.*\R?/m', '', $tpl);   // absensi harian: tanpa baris mapel/guru
         $params = array($vars['nama'], $vars['kelas'], $vars['mapel'], $vars['guru'], $vars['hari_tanggal'], $vars['waktu']);
         return $this->insert_row($dedupe, $r->id, $r->session_id, $r->sid, $r->parent_id, $type, $r->session_date, $r->whatsapp,
             $this->render($tpl, $vars), $params);

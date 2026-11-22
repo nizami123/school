@@ -24,7 +24,7 @@ class Master extends MY_Controller
     {
         switch ($k) {
             case 'classes': $q = 'SELECT id, name AS label FROM classes WHERE school_id=? ORDER BY name'; break;
-            case 'subjects': $q = "SELECT id, CONCAT(code,' - ',name) AS label FROM subjects WHERE school_id=? ORDER BY name"; break;
+            case 'subjects': $q = "SELECT id, CONCAT(code,' - ',name) AS label FROM subjects WHERE school_id=? AND code<>'_HARIAN' ORDER BY name"; break;
             case 'teachers': $q = 'SELECT id, name AS label FROM teachers WHERE school_id=? AND is_active=1 ORDER BY name'; break;
             case 'parents': $q = "SELECT id, CONCAT(name,' (',IFNULL(whatsapp,'-'),')') AS label FROM parents WHERE school_id=? ORDER BY name"; break;
             case 'years': $q = 'SELECT id, name AS label FROM academic_years WHERE school_id=? ORDER BY start_date DESC'; break;
@@ -428,11 +428,10 @@ class Master extends MY_Controller
 
     private function has_xlsx() { return class_exists('PhpOffice\PhpSpreadsheet\Spreadsheet'); }
 
-    /** Format keluaran: XLSX bila tersedia (kecuali diminta ?format=csv), selain itu CSV. */
+    /** Format keluaran: selalu Excel (.xlsx). */
     private function out_format()
     {
-        if (strtolower((string)$this->input->get('format')) === 'csv') return 'csv';
-        return $this->has_xlsx() ? 'xlsx' : 'csv';
+        return 'xlsx';   // hanya Excel
     }
 
     /** Indeks kolom yang harus berformat Teks (nomor panjang / berawalan 0). */
@@ -580,7 +579,7 @@ class Master extends MY_Controller
         return trim(str_replace("\xC2\xA0", ' ', $s));
     }
 
-    /** Baca CSV/XLSX. Mengembalikan array(daftar_header, baris[]) ; melempar RuntimeException bila gagal. */
+    /** Baca file Excel. Mengembalikan array(daftar_header, baris[]) ; melempar RuntimeException bila gagal. */
     private function read_table($tmp, $ext, $key = '')
     {
         $all = array();
@@ -592,21 +591,10 @@ class Master extends MY_Controller
                 $all = $ss->getSheet(0)->toArray(NULL, TRUE, FALSE, FALSE);   // nilai mentah, bukan hasil format tampilan
                 $ss->disconnectWorksheets();
             } catch (\Throwable $ex) {
-                throw new \RuntimeException('File Excel tidak dapat dibaca (' . $ex->getMessage() . '). Pastikan file .xlsx asli, bukan CSV yang diganti ekstensi.');
+                throw new \RuntimeException('File Excel tidak dapat dibaca (' . $ex->getMessage() . '). Pastikan file Excel (.xlsx) asli, bukan file lain yang diganti ekstensinya.');
             }
         } else {
-            $raw = file_get_contents($tmp);
-            if ($raw === FALSE) throw new \RuntimeException('File tidak dapat dibaca.');
-            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
-            if (!mb_check_encoding($raw, 'UTF-8')) $raw = mb_convert_encoding($raw, 'UTF-8', 'Windows-1252');   // CSV dari Excel versi lama
-            $first = (string)strtok($raw, "\n");
-            $delim = ','; $best = substr_count($first, ',');
-            foreach (array(';', "\t") as $d) { $n = substr_count($first, $d); if ($n > $best) { $best = $n; $delim = $d; } }
-            $fh = fopen('php://temp', 'r+');
-            fwrite($fh, $raw);
-            rewind($fh);
-            while (($r = fgetcsv($fh, 0, $delim)) !== FALSE) { $all[] = $r; }
-            fclose($fh);
+            throw new \RuntimeException('Format file harus Excel (.xlsx).');
         }
         $hdr = NULL; $rows = array();
         foreach ($all as $n => $r) {
@@ -650,14 +638,14 @@ class Master extends MY_Controller
         $f = isset($_FILES['file']) ? $_FILES['file'] : NULL;
         if (!$f || empty($f['tmp_name']) || (int)$f['error'] !== UPLOAD_ERR_OK) {
             $why = ($f && in_array((int)$f['error'], array(UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE), TRUE))
-                ? 'File terlalu besar untuk batas unggah server (upload_max_filesize).' : 'Pilih file CSV/XLSX terlebih dahulu.';
+                ? 'File terlalu besar untuk batas unggah server (upload_max_filesize).' : 'Pilih file Excel (.xlsx) terlebih dahulu.';
             $this->flash('danger', $why);
             redirect($back);
         }
         $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-        if (!in_array($ext, array('csv', 'xlsx', 'xls'), TRUE)) { $this->flash('danger', 'Format file harus .csv atau .xlsx.'); redirect($back); }
-        if ($ext !== 'csv' && !$this->has_xlsx()) {
-            $this->flash('danger', 'Impor Excel memerlukan folder vendor/ (PhpSpreadsheet). Simpan file sebagai CSV lalu unggah ulang.');
+        if (!in_array($ext, array('xlsx', 'xls'), TRUE)) { $this->flash('danger', 'Format file harus Excel (.xlsx).'); redirect($back); }
+        if (!$this->has_xlsx()) {
+            $this->flash('danger', 'Impor Excel memerlukan folder vendor/ (PhpSpreadsheet). Unggah folder vendor/ dari paket aplikasi.');
             redirect($back);
         }
         @set_time_limit(300);
@@ -764,7 +752,7 @@ class Master extends MY_Controller
     {
         $ok = 0; $err = array(); $now = date('Y-m-d H:i:s');
         $by_code = array(); $by_name = array();
-        foreach ($this->db->query('SELECT id, code, name FROM subjects WHERE school_id=?', array($this->sid))->result() as $s) {
+        foreach ($this->db->query('SELECT id, code, name FROM subjects WHERE school_id=? AND code<>\'_HARIAN\'', array($this->sid))->result() as $s) {
             $by_code[strtolower($s->code)] = (int)$s->id;
             $by_name[$this->key_norm($s->name)] = (int)$s->id;
         }

@@ -1,6 +1,6 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed');
 
-/** Laporan: tampilan cetak, PDF (Dompdf jika terpasang), Excel (PhpSpreadsheet jika terpasang, selain itu CSV). */
+/** Laporan: tampilan cetak, PDF (Dompdf jika terpasang), Excel (PhpSpreadsheet). */
 class Report extends MY_Controller
 {
     public function __construct()
@@ -33,7 +33,7 @@ class Report extends MY_Controller
         list($title, $headers, $rows) = $this->Report_model->build($type, $f);
         $fmt = $this->input->get('format');
         audit('laporan_' . $type, 'format=' . $fmt . ' ' . $f['from'] . '..' . $f['to']);
-        if ($fmt === 'xlsx' || $fmt === 'csv') {
+        if ($fmt === 'xlsx') {
             export_table('laporan-' . $type . '-' . date('Ymd'), $headers, $rows, $fmt);
         }
         $logo_data = '';

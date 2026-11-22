@@ -152,6 +152,8 @@ ALTER TABLE students DROP INDEX nis, DROP INDEX nisn, ADD UNIQUE KEY uq_students
 ALTER TABLE subjects DROP INDEX code, ADD UNIQUE KEY uq_subjects_code (school_id, code);
 ALTER TABLE academic_years DROP INDEX name, ADD UNIQUE KEY uq_years_name (school_id, name);
 
+ALTER TABLE attendance_sessions ADD COLUMN session_type ENUM('mapel','harian') NOT NULL DEFAULT 'mapel' AFTER school_id, MODIFY teacher_id INT UNSIGNED NULL;
+
 -- pengaturan per sekolah
 ALTER TABLE school_settings ADD COLUMN school_id INT UNSIGNED NULL FIRST;
 UPDATE school_settings SET school_id=1;

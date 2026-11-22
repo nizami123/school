@@ -28,8 +28,15 @@ Buka `/install`: isi database + akun Super Admin. Lalu login, tambah sekolah dar
 ## Kuota langganan
 Kuota (0 = tanpa batas) membatasi jumlah siswa terdaftar (belum dihapus). Berlaku di form tambah siswa dan impor. Estimasi tagihan = siswa terdaftar x harga per siswa.
 
+## Mode absensi (dipilih tiap sekolah)
+Pengaturan > tab jadwal/absensi > **Mode Absensi**:
+- **Per mata pelajaran** (default): guru membuka sesi dari jadwal.
+- **Sekali di pagi hari**: satu sesi per kelas per hari, dapat dibuka dan dipindai oleh semua guru maupun admin dari Beranda (guru mana pun bisa melanjutkan sesi yang dibuka guru lain). Jam Masuk + toleransi menentukan batas terlambat, dan hanya berlaku pada hari efektif. Pesan WhatsApp otomatis tanpa baris mapel/guru. Mapel semu "Absensi Harian" dibuat otomatis dan disembunyikan dari Data Mata Pelajaran.
+
+Sudah menjalankan migrasi versi sebelumnya? Jalankan `database/migrate_absensi_harian.sql` sekali.
+
 ## Impor / ekspor
-Data Siswa, Guru, Orang Tua, dan Jadwal: tombol Ekspor (Excel/CSV), Template, dan Impor. Hasil ekspor bisa diimpor kembali.
+Hanya format Excel (.xlsx; CSV tidak didukung, perlu folder vendor/). Data Siswa, Guru, Orang Tua, dan Jadwal: tombol Ekspor Excel, Template Excel, dan Impor. Hasil ekspor bisa diimpor kembali.
 - Guru: `nama, nip, username, password, no_hp, email, mapel, status` (mapel = kode atau nama, pisahkan dengan `;`). Password wajib untuk guru baru; kosong pada guru lama = tidak diubah.
 - Orang tua: `nama, ayah, ibu, wali, hubungan, whatsapp` (dicocokkan dengan nomor WhatsApp).
 - Siswa: `nis, nisn, nama, jk, kelas, nama_ortu, wa_ortu`.

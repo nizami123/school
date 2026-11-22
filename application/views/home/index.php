@@ -1,7 +1,8 @@
 <?php
 $wa = 'https://wa.me/' . preg_replace('/\D/', '', $v['wa_number']) . '?text=' . rawurlencode($v['wa_text']);
 $features = array(
-    array('bi-qr-code-scan', 'Absensi QR per mata pelajaran', 'Setiap siswa punya QR acak. Guru membuka sesi dari jadwal, scan lewat kamera tanpa reload, dengan suara, validasi server, dan anti-ganda.'),
+    array('bi-toggles', 'Pilih mode absensi', 'Setiap sekolah bebas memilih: absen sekali di pagi hari (per kelas, bisa dilakukan semua guru) atau absen tiap mata pelajaran.'),
+    array('bi-qr-code-scan', 'Absensi QR', 'Setiap siswa punya QR acak. Guru membuka sesi dari jadwal, scan lewat kamera tanpa reload, dengan suara, validasi server, dan anti-ganda.'),
     array('bi-wifi-off', 'Tetap jalan saat sinyal lemah', 'Hasil scan masuk antrean lokal dan disinkronkan otomatis ketika internet kembali.'),
     array('bi-whatsapp', 'Notifikasi WhatsApp ke orang tua', 'Hadir, terlambat, tidak hadir, izin, dan sakit terkirim lewat Fonnte dengan antrean, retry, dan template pesan yang bisa diubah.'),
     array('bi-person-hearts', 'Portal orang tua', 'Satu akun memantau beberapa anak: kehadiran, rekap bulanan, jadwal, pengumuman, dan kalender akademik.'),
@@ -11,8 +12,8 @@ $features = array(
     array('bi-megaphone', 'Pengumuman & rapat wali murid', 'Pengumuman per kelas atau seluruh sekolah, sematkan, dan konfirmasi kehadiran orang tua.'),
     array('bi-trophy', 'Ekstrakurikuler', 'Informasi kegiatan, kuota, pendaftaran oleh orang tua, dan persetujuan pembina.'),
     array('bi-person-vcard', 'Kartu pelajar', 'Cetak kartu ukuran CR80 per siswa atau per kelas; QR lama otomatis tidak berlaku saat dibuat ulang.'),
-    array('bi-file-earmark-bar-graph', 'Rekap & laporan', 'Dashboard dan grafik, laporan per siswa, kelas, mapel, guru, dan semester dalam bentuk cetak, PDF, Excel, atau CSV.'),
-    array('bi-file-earmark-spreadsheet', 'Impor & ekspor data', 'Data siswa, guru, orang tua, dan jadwal dapat diimpor dari Excel/CSV dan diekspor kembali.'),
+    array('bi-file-earmark-bar-graph', 'Rekap & laporan', 'Dashboard dan grafik, laporan per siswa, kelas, mapel, guru, dan semester dalam bentuk cetak, PDF, atau Excel.'),
+    array('bi-file-earmark-spreadsheet', 'Impor & ekspor data', 'Data siswa, guru, orang tua, dan jadwal dapat diimpor dari Excel (.xlsx) dan diekspor kembali.'),
 );
 ?><!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Velano School - Absensi QR & Administrasi Sekolah</title>
@@ -103,7 +104,7 @@ footer{background:#0b2517;color:#a7c7b2}
   array('Apakah WhatsApp gratis?', 'Notifikasi memakai layanan Fonnte milik sekolah (token Anda sendiri). Biaya layanan WhatsApp mengikuti paket Fonnte.'),
   array('Apakah bisa bayar SPP online lewat bank atau e-wallet?', 'Saat ini pembayaran bersifat manual: orang tua mengunggah bukti transfer lalu admin memverifikasi. Integrasi payment gateway belum tersedia.'),
   array('Perlu perangkat khusus?', 'Tidak. Cukup ponsel atau laptop dengan kamera dan koneksi internet. Aplikasi dapat dipasang di layar utama.'),
-  array('Bagaimana memindahkan data siswa yang sudah ada?', 'Gunakan fitur impor Excel/CSV untuk siswa, guru, orang tua, dan jadwal; template tersedia di aplikasi.'),
+  array('Bagaimana memindahkan data siswa yang sudah ada?', 'Gunakan fitur impor Excel (.xlsx) untuk siswa, guru, orang tua, dan jadwal; template tersedia di aplikasi.'),
 ) as $i => $q): ?>
 <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button <?= $i ? 'collapsed' : '' ?>" data-bs-toggle="collapse" data-bs-target="#q<?= $i ?>"><?= e($q[0]) ?></button></h3>
 <div id="q<?= $i ?>" class="accordion-collapse collapse <?= $i ? '' : 'show' ?>" data-bs-parent="#acc"><div class="accordion-body text-secondary"><?= e($q[1]) ?></div></div></div>

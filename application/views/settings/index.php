@@ -13,6 +13,11 @@ $eff = explode(',', setting('effective_days', '1,2,3,4,5')); ?>
 </div></div>
 <div class="tab-pane fade" id="t2"><div class="row g-3">
   <div class="col-12"><label class="form-label d-block">Hari Efektif Sekolah</label><?php foreach (array(1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu') as $k => $l): ?><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="effective_days[]" value="<?= $k ?>" id="d<?= $k ?>" <?= in_array((string)$k, $eff, TRUE) ? 'checked' : '' ?>><label class="form-check-label" for="d<?= $k ?>"><?= $l ?></label></div><?php endforeach; ?></div>
+  <div class="col-12"><label class="form-label d-block fw-semibold">Mode Absensi</label>
+    <?php $am = attendance_mode(); ?>
+    <div class="form-check"><input class="form-check-input" type="radio" name="attendance_mode" id="am1" value="mapel" <?= $am === 'mapel' ? 'checked' : '' ?>><label class="form-check-label" for="am1"><strong>Absen tiap mata pelajaran</strong> — guru mapel membuka sesi dari jadwal pelajaran.</label></div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="attendance_mode" id="am2" value="harian" <?= $am === 'harian' ? 'checked' : '' ?>><label class="form-check-label" for="am2"><strong>Absen sekali di pagi hari</strong> — satu sesi per kelas per hari; semua guru (dan admin) dapat membuka dan memindai, memakai Jam Masuk di bawah.</label></div>
+    <div class="form-text">Mengganti mode tidak menghapus data lama. Sesi yang sedang berjalan tetap bisa diselesaikan.</div></div>
   <div class="col-md-4"><label class="form-label">Jam Masuk</label><input type="time" name="start_time" class="form-control" value="<?= $s('start_time', '07:00') ?>"></div>
   <div class="col-md-4"><label class="form-label">Istirahat Mulai</label><input type="time" name="break_start" class="form-control" value="<?= $s('break_start') ?>"></div>
   <div class="col-md-4"><label class="form-label">Istirahat Selesai</label><input type="time" name="break_end" class="form-control" value="<?= $s('break_end') ?>"></div>

@@ -36,6 +36,8 @@ class Settings extends MY_Controller
             setting_set($k, $v);
         }
         foreach ($this->flags as $k) { setting_set($k, $this->input->post($k) ? '1' : '0'); }
+        $mode = (string)$this->input->post('attendance_mode');
+        if (in_array($mode, array('mapel', 'harian'), TRUE)) setting_set('attendance_mode', $mode);
         $days = $this->input->post('effective_days');
         setting_set('effective_days', is_array($days) ? implode(',', array_map('intval', $days)) : '1,2,3,4,5');
 

@@ -109,6 +109,22 @@ if (!function_exists('school_quota_left')) {
         return max(0, (int)$r->student_quota - school_student_count());
     }
 }
+if (!function_exists('attendance_mode')) {
+    /** 'mapel' = absen tiap mata pelajaran (default), 'harian' = absen sekali di pagi hari per kelas. */
+    function attendance_mode() { return setting('attendance_mode', 'mapel') === 'harian' ? 'harian' : 'mapel'; }
+}
+if (!function_exists('daily_subject_id')) {
+    /** Mapel semu "Absensi Harian" (kode _HARIAN) yang dipakai sesi absensi harian; dibuat otomatis per sekolah. */
+    function daily_subject_id()
+    {
+        $CI =& get_instance();
+        $r = $CI->db->get_where('subjects', array('school_id' => school_id(), 'code' => '_HARIAN'))->row();
+        if ($r) return (int)$r->id;
+        $now = date('Y-m-d H:i:s');
+        $CI->db->insert('subjects', array('school_id' => school_id(), 'code' => '_HARIAN', 'name' => 'Absensi Harian', 'created_at' => $now, 'updated_at' => $now));
+        return (int)$CI->db->insert_id();
+    }
+}
 if (!function_exists('school_seed_defaults')) {
     /** Data awal sekolah baru: pengaturan standar, tahun ajaran & semester berjalan. */
     function school_seed_defaults($sid)
@@ -124,7 +140,7 @@ if (!function_exists('school_seed_defaults')) {
         $CI->config->load('wa_defaults', TRUE);
         $settings = array_merge(array(
             'effective_days' => '1,2,3,4,5', 'start_time' => '07:00', 'break_start' => '', 'break_end' => '', 'late_minutes' => '15',
-            'wa_enabled' => '0', 'wa_policy' => 'each', 'wa_delay' => '2', 'wa_token' => '',
+            'attendance_mode' => 'mapel', 'wa_enabled' => '0', 'wa_policy' => 'each', 'wa_delay' => '2', 'wa_token' => '',
             'wa_notify_hadir' => '1', 'wa_notify_terlambat' => '1', 'wa_notify_absent' => '1', 'wa_notify_izin' => '1', 'wa_notify_sakit' => '1', 'wa_notify_daily' => '0',
             'card_note' => 'Kartu ini milik sekolah. Jika ditemukan harap dikembalikan.'), $CI->config->item('wa_templates', 'wa_defaults'));
         foreach ($settings as $k => $v) {
@@ -220,19 +236,19 @@ if (!function_exists('student_photo')) {
 }
 if (!function_exists('export_table')) {
     /**
-     * Ekspor tabel sebagai XLSX (jika PhpSpreadsheet terpasang) atau CSV (titik koma, UTF-8 BOM; dibuka langsung oleh Excel).
+     * Ekspor tabel sebagai file Excel (.xlsx) memakai PhpSpreadsheet (folder vendor/). Parameter $format dipertahankan demi kompatibilitas dan diabaikan.
      * $opts: 'sheet' => nama sheet, 'text_cols' => indeks kolom (0-based) yang dipaksa berformat Teks
      *        (NIS, NISN, nomor WhatsApp, dll. agar angka 0 di depan / tanda + tidak hilang).
      * Angka pendek (<= 9 digit, tanpa 0 di depan) disimpan sebagai angka; selain itu sebagai teks.
      */
-    function export_table($filename, $headers, $rows, $format = 'csv', $opts = array())
+    function export_table($filename, $headers, $rows, $format = 'xlsx', $opts = array())
     {
         $filename = preg_replace('/[^A-Za-z0-9_\-]/', '_', $filename);
         $text_cols = isset($opts['text_cols']) ? (array)$opts['text_cols'] : array();
         $sheet = isset($opts['sheet']) ? $opts['sheet'] : 'Data';
         while (ob_get_level() > 0) { @ob_end_clean(); }
 
-        if ($format === 'xlsx' && class_exists('PhpOffice\PhpSpreadsheet\Spreadsheet')) {
+        if (class_exists('PhpOffice\PhpSpreadsheet\Spreadsheet')) {
             $tmp = tempnam(sys_get_temp_dir(), 'xls');
             try {
                 $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
@@ -282,18 +298,10 @@ if (!function_exists('export_table')) {
             } catch (\Throwable $ex) {
                 @unlink($tmp);
                 log_message('error', 'Ekspor XLSX gagal: ' . $ex->getMessage());
-                // lanjut ke CSV agar pengguna tetap mendapat data
+                show_error('Ekspor Excel gagal dibuat. Periksa log aplikasi.', 500, 'Ekspor Gagal');
             }
         }
-        header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '.csv"');
-        header('Cache-Control: max-age=0, no-cache, must-revalidate');
-        echo "\xEF\xBB\xBF";
-        $o = fopen('php://output', 'w');
-        fputcsv($o, $headers, ';');
-        foreach ($rows as $r) { fputcsv($o, array_values($r), ';'); }
-        fclose($o);
-        exit;
+        show_error('Ekspor Excel memerlukan folder vendor/ (PhpSpreadsheet). Unggah folder vendor/ dari paket aplikasi.', 500, 'PhpSpreadsheet Belum Terpasang');
     }
 }
 

@@ -387,4 +387,6 @@ INSERT INTO school_settings (school_id, skey, svalue) VALUES (902, 'wa_policy', 
 INSERT INTO school_settings (school_id, skey, svalue) VALUES (902, 'wa_delay', '2');
 INSERT INTO school_settings (school_id, skey, svalue) VALUES (902, 'card_note', 'Kartu ini milik sekolah.');
 
+INSERT INTO school_settings (school_id, skey, svalue) VALUES (902, 'attendance_mode', 'harian');
+
 SET FOREIGN_KEY_CHECKS=1;

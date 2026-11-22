@@ -238,11 +238,12 @@ CREATE TABLE IF NOT EXISTS student_qr_codes (
 CREATE TABLE IF NOT EXISTS attendance_sessions (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   school_id INT UNSIGNED NOT NULL,
+  session_type ENUM('mapel','harian') NOT NULL DEFAULT 'mapel',
   schedule_id INT UNSIGNED NULL,
   semester_id INT UNSIGNED NULL,
   class_id INT UNSIGNED NOT NULL,
   subject_id INT UNSIGNED NOT NULL,
-  teacher_id INT UNSIGNED NOT NULL,
+  teacher_id INT UNSIGNED NULL,
   session_date DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,

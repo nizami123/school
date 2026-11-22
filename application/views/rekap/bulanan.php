@@ -2,7 +2,6 @@
   <div class="col-6 col-md-3"><label class="form-label small mb-0">Bulan</label><input type="month" name="bulan" value="<?= e($ym) ?>" class="form-control"></div>
   <div class="col-6 col-md-3"><label class="form-label small mb-0">Kelas</label><select name="class_id" class="form-select"><option value="">Semua kelas</option><?php foreach ($classes as $c): ?><option value="<?= $c->id ?>" <?= (int)$class_id === (int)$c->id ? 'selected' : '' ?>><?= e($c->name) ?></option><?php endforeach; ?></select></div>
   <div class="col-12 col-md-6 d-flex gap-2 flex-wrap"><button class="btn btn-primary">Tampilkan</button>
-    <a class="btn btn-outline-secondary" href="<?= site_url('rekap/bulanan?bulan=' . $ym . '&class_id=' . $class_id . '&format=csv') ?>">CSV</a>
     <?php if (class_exists('PhpOffice\\PhpSpreadsheet\\Spreadsheet')): ?><a class="btn btn-outline-success" href="<?= site_url('rekap/bulanan?bulan=' . $ym . '&class_id=' . $class_id . '&format=xlsx') ?>">Excel</a><?php endif; ?>
     <button type="button" class="btn btn-outline-dark" onclick="window.print()"><i class="bi bi-printer"></i></button></div>
 </form></div></div>

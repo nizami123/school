@@ -62,7 +62,7 @@ $config['entities'] = array(
 
 'subjects' => array(
     'title' => 'Data Mata Pelajaran', 'singular' => 'Mata Pelajaran', 'table' => 'subjects',
-    'select' => 'sb.*', 'from' => 'subjects sb', 'joins' => array(), 'where' => '', 'order' => 'sb.name',
+    'select' => 'sb.*', 'from' => 'subjects sb', 'joins' => array(), 'where' => "sb.code<>'_HARIAN'", 'order' => 'sb.name',
     'columns' => array(array('code', 'Kode'), array('name', 'Mata Pelajaran'), array('grp', 'Kelompok'), array('hours', 'Alokasi Jam')),
     'fields' => array(
         array('name' => 'code', 'label' => 'Kode Mapel', 'type' => 'text', 'required' => 1, 'unique' => 1),

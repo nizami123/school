@@ -15,7 +15,6 @@
   <button name="format" value="print" class="btn btn-primary"><i class="bi bi-printer"></i> Cetak</button>
   <button name="format" value="pdf" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
   <button name="format" value="xlsx" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>
-  <button name="format" value="csv" class="btn btn-outline-secondary">CSV</button>
 </div>
-<div class="col-12 small text-muted">PDF langsung memerlukan Dompdf (<?= $has_pdf ? 'terpasang ✔' : 'belum terpasang — tombol PDF akan membuka versi cetak; gunakan "Simpan sebagai PDF" di dialog cetak' ?>). Excel .xlsx memerlukan PhpSpreadsheet (<?= $has_xlsx ? 'terpasang ✔' : 'belum terpasang — otomatis diunduh sebagai CSV yang dapat dibuka di Excel' ?>).</div>
+<div class="col-12 small text-muted">PDF langsung memerlukan Dompdf (<?= $has_pdf ? 'terpasang ✔' : 'belum terpasang — tombol PDF akan membuka versi cetak; gunakan "Simpan sebagai PDF" di dialog cetak' ?>). Excel .xlsx memerlukan PhpSpreadsheet (<?= $has_xlsx ? 'terpasang ✔' : 'belum terpasang — unggah folder vendor/' ?>).</div>
 </form></div></div>

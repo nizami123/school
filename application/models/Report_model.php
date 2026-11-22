@@ -61,7 +61,7 @@ class Report_model extends CI_Model
     public function build($type, $f)
     {
         $args = array();
-        $base = ' FROM attendance_records r JOIN attendance_sessions ses ON ses.id=r.session_id JOIN students st ON st.id=r.student_id JOIN classes c ON c.id=ses.class_id JOIN subjects sub ON sub.id=ses.subject_id JOIN teachers t ON t.id=ses.teacher_id';
+        $base = ' FROM attendance_records r JOIN attendance_sessions ses ON ses.id=r.session_id JOIN students st ON st.id=r.student_id JOIN classes c ON c.id=ses.class_id JOIN subjects sub ON sub.id=ses.subject_id LEFT JOIN teachers t ON t.id=ses.teacher_id';
         $title = isset(self::$types[$type]) ? self::$types[$type] : 'Laporan';
         switch ($type) {
             case 'siswa': case 'semester': case 'persentase':

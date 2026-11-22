@@ -14,3 +14,5 @@ Jalankan `database/dummy_data.sql` SETELAH schema/migrasi. Hapus bersih dengan `
 
 Tiap sekolah: 2 kelas, 12 siswa (QR aktif), 3 mapel, jadwal Senin-Jumat, absensi 16-20 Nov 2026, pengumuman, kalender, SPP (4 lunas), ekskul, dan 1 izin menunggu.
 SMA sengaja berkuota 12 (penuh) untuk menguji pembatasan kuota. Nomor WhatsApp orang tua fiktif.
+
+Mode absensi: SMP Negeri 1 Contoh = per mata pelajaran, SMA Harapan Bangsa = harian (sekali di pagi hari).  Di mode harian semua guru dapat mengabsen kelas mana pun.
